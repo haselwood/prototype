@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Direct Donation Prototype</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              background: '#ffffff',
+              foreground: '#0a0a0a',
+              primary: {
+                DEFAULT: '#0EA5E9',
+                foreground: '#ffffff',
+              },
+              muted: '#f4f4f5',
+              border: '#e4e4e7',
+              card: '#ffffff',
+            },
+          },
+        },
+      };
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+    <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css" />
+    <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/duotone/style.css" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body class="bg-background text-foreground">
+    <header id="siteHeader" class="hidden sticky top-0 z-50 w-full border-b border-border bg-white">
+      <div class="relative flex items-center px-6 py-2">
+        <button id="exitBtn" class="btn-outline text-sm">Exit</button>
+        <div class="absolute left-1/2 -translate-x-1/2 text-base font-semibold text-zinc-900">Make a one-time donation</div>
+        <button id="checkoutBtn" disabled class="btn-outline text-sm disabled:cursor-not-allowed disabled:opacity-70 hidden">
+          Go to checkout
+        </button>
+      </div>
+    </header>
+
+    <main class="grid max-w-none grid-cols-1 gap-6 px-0 pt-0 pb-8 md:grid-cols-12 bg-zinc-50 min-h-screen">
+      <!-- Left content column -->
+      <!-- Left floating match program (desktop) -->
+      <aside id="leftMatchAside" class="hidden">
+        <div id="leftMatchCard" class="card p-4 w-[280px]">
+          <div class="flex items-center justify-between">
+            <div class="font-medium">CBC Capital</div>
+            <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">1x match</span>
+          </div>
+          <div class="mt-2 text-sm text-gray-600">$450 match available</div>
+          <div class="mt-2 h-2 w-full rounded bg-gray-200">
+            <div class="h-2 rounded bg-emerald-500" style="width:45%"></div>
+          </div>
+          <div class="mt-1 text-xs text-gray-600">$550/$1,000 used</div>
+          <button class="mt-3 btn-outline text-sm w-full">View (1) additional program</button>
+        </div>
+      </aside>
+
+      <div id="leftCol" class="md:col-span-12">
+        <!-- View: Start -->
+        <section id="view-start" data-view class="flex min-h-screen w-full transform -translate-y-[300px] flex-col items-center justify-center">
+          <button id="startDonateBtn" class="mx-auto inline-flex items-center rounded-md bg-zinc-900 px-6 py-3 text-base font-medium text-white hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-900">Donate</button>
+        </section>
+
+        <!-- View: Choose frequency (modal overlay) -->
+        <section id="view-choose" data-view class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black/60 p-4">
+          <div class="card w-full max-w-3xl overflow-hidden">
+            <div class="flex items-center justify-between px-6 pt-4 pb-4">
+              <h2 class="text-base font-semibold">What type of donation are you making?</h2>
+              <button id="chooseCloseBtn" class="rounded p-1 text-gray-500 hover:bg-gray-100">
+                <i class="ph ph-x"></i>
+              </button>
+            </div>
+            <div class="grid gap-4 px-6 pt-2 pb-0 sm:grid-cols-2">
+              <button class="select-card" data-type="oneTime">
+                <div class="select-card-inner">
+                  <div class="select-icon"><i class="ph-bold ph-money"></i></div>
+                  <div class="select-title">One-time</div>
+                  <div class="select-sub">Send a single donation</div>
+                </div>
+              </button>
+              <button class="select-card" data-type="recurring">
+                <div class="select-card-inner">
+                  <div class="select-icon"><i class="ph-bold ph-arrows-clockwise"></i></div>
+                  <div class="select-title">Recurring</div>
+                  <div class="select-sub">Set up a recurring donation</div>
+                  <div class="mt-2 inline-flex rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">No transaction fees</div>
+                </div>
+              </button>
+            </div>
+            <div class="flex items-center justify-between px-6 pt-6 pb-4">
+              <button id="chooseCancelBtn" class="btn-muted">Cancel</button>
+              <button id="chooseContinueBtn" class="inline-flex items-center rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white">
+                Continue <i class="ph-bold ph-arrow-right ml-2"></i>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- View: One-time -->
+        <section id="view-oneTime" data-view class="hidden">
+          <div id="centerContent" class="mx-auto max-w-[448px] space-y-6 mt-6">
+          <div class="card bg-zinc-100 flex flex-col items-center justify-center" style="height:144px">
+            <div class="flex items-center justify-center h-16 w-16 rounded-full bg-red-600 text-white text-xl font-semibold">T</div>
+            <div class="mt-3 text-sm font-medium text-gray-800">Donate to Team Rubicon</div>
+          </div>
+
+          <div class="text-center">
+            <h3 class="mb-1 text-[18px] font-semibold">You have credits available from CBC Capital</h3>
+            <p class="mb-2 text-[14px] text-gray-600">Use donation credits alone or with your own donation</p>
+          </div>
+          <div class="card p-0 credits-card">
+            <div class="rounded-t-md rounded-b-none border border-gray-200 bg-gray-50 p-3 px-6">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                  <span class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-sky-700 text-white">
+                    <i class="ph-duotone ph-gift text-xl"></i>
+                  </span>
+                  <div>
+                    <div class="text-[18px] font-semibold">$400</div>
+                    <div class="text-xs text-gray-600">Donation credits</div>
+                  </div>
+                </div>
+                <div class="text-xs text-gray-500">£198.57 <span class="text-[10px]">GPS</span></div>
+              </div>
+            </div>
+            <div class="space-y-0" id="creditsList">
+            </div>
+            <div class="space-y-0" id="creditsList">
+              <div class="credit-row px-6 py-4">
+                <div class="flex items-start justify-between gap-4">
+                  <label class="flex items-start gap-2">
+                    <input class="credit-enable mt-1 h-4 w-4" type="checkbox" />
+                    <span>
+                      <div class="font-medium leading-tight">Employee Gift Q2</div>
+                      <div class="mt-0.5 text-xs text-gray-500 leading-tight">Expires 12/31/25</div>
+                    </span>
+                  </label>
+                  <div class="text-sm text-zinc-900">$300.00</div>
+                </div>
+                <div class="credit-input-group hidden mt-3">
+                  <div class="mb-1 text-[13px] font-medium text-zinc-900">How much of your credit do you want to use?</div>
+                  <div class="relative max-w-xs">
+                    <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                    <input class="credit-input input w-full pl-6 bg-gray-50" type="number" min="0" step="0.01" value="300" data-max="300" />
+                  </div>
+                </div>
+              </div>
+
+              <div class="credit-row border-t px-6 py-4">
+                <div class="flex items-start justify-between gap-4">
+                  <label class="flex items-start gap-2">
+                    <input class="credit-enable mt-1 h-4 w-4" type="checkbox" />
+                    <span>
+                      <div class="font-medium leading-tight">Hackathon 2025 Win</div>
+                      <div class="mt-0.5 text-xs text-gray-500 leading-tight">Never expires</div>
+                    </span>
+                  </label>
+                  <div class="text-sm text-zinc-900">$100.00</div>
+                </div>
+                <div class="credit-input-group hidden mt-3">
+                  <div class="mb-1 text-[13px] font-medium text-zinc-900">How much of your credit do you want to use?</div>
+                  <div class="relative max-w-xs">
+                    <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                    <input class="credit-input input w-full pl-6 bg-gray-50" type="number" min="0" step="0.01" value="100" data-max="100" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p class="mt-2 mb-4 text-center text-[14px] text-[#71717A]">Credits aren’t eligible for a company match</p>
+
+          <div class="mt-0 text-center">
+            <h2 class="mb-1 text-[18px] font-semibold">Fund a donation and get a company match</h2>
+            <p class="mb-2 text-[16px] text-gray-600">You'll pick a funding source next</p>
+          </div>
+          <div class="card p-6 text-center">
+            <div class="flex flex-wrap justify-center gap-2" id="otAmountChips">
+              <button data-amount="5" class="chip">$5</button>
+              <button data-amount="10" class="chip">$10</button>
+              <button data-amount="50" class="chip">$50</button>
+              <button data-amount="100" class="chip">$100</button>
+              <button data-amount="500" class="chip">$500</button>
+              <div class="relative">
+                <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                <input id="otCustomAmount" type="number" min="0" step="0.01" placeholder="0" class="input h-10 pl-6" />
+              </div>
+            </div>
+            <p id="otAmountError" class="mt-2 hidden text-sm text-red-600">Minimum is $5</p>
+            <div id="matchDisplay" class="mt-3 hidden text-sm font-medium text-sky-700">
+              <span id="matchDisplayText"></span>
+              <button id="editMatchBtn" class="ml-2 inline-flex items-center rounded border border-gray-300 px-2 py-1 text-xs"><i class="ph-bold ph-pencil-simple"></i></button>
+            </div>
+            <div id="matchInputGroup" class="mt-3 hidden">
+              <div class="mb-1 text-xs text-gray-600">Company match to request</div>
+              <div class="relative inline-block">
+                <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                <input id="matchAmountInput" type="number" min="0" step="0.01" class="input h-10 w-40 pl-6 text-center" value="0.00" />
+              </div>
+            </div>
+          </div>
+          <div class="clear-both"></div>
+          </div>
+          <!-- Body CTAs removed in favor of header actions -->
+        </section>
+
+        <!-- View: Recurring -->
+        <section id="view-recurring" data-view class="hidden space-y-6">
+          <div class="card p-6">
+            <h2 class="mb-4 text-lg font-semibold">Choose your amount</h2>
+            <div class="flex flex-wrap gap-2" id="amountChips">
+              <button data-amount="5" class="chip">$5</button>
+              <button data-amount="10" class="chip">$10</button>
+              <button data-amount="50" class="chip">$50</button>
+              <button data-amount="100" class="chip">$100</button>
+              <button data-amount="500" class="chip">$500</button>
+              <div class="relative">
+                <span class="pointer-events-none absolute left-3 top-2 text-gray-500">$</span>
+                <input id="customAmount" type="number" min="0" step="0.01" placeholder="Custom" class="input pl-6" />
+              </div>
+            </div>
+            <p id="amountError" class="mt-2 hidden text-sm text-red-600">Minimum is $5</p>
+          </div>
+
+          <div class="card p-6">
+            <h2 class="mb-4 text-lg font-semibold">Cadence</h2>
+            <div class="space-y-4">
+              <label class="radio-item">
+                <input type="radio" name="cadence" value="monthly" />
+                <span>Every month on</span>
+                <select id="monthlyDay" class="ml-2 input w-28">
+                  <!-- 1..31 options injected by JS -->
+                </select>
+                <span class="ml-2 text-sm text-gray-500">(clamps to last day if needed)</span>
+              </label>
+
+              <label class="radio-item items-start">
+                <div class="flex items-center">
+                  <input type="radio" name="cadence" value="weekly" />
+                  <span class="ml-2">Every</span>
+                  <select id="weeklyInterval" class="ml-2 input w-24">
+                    <!-- 1..8 injected by JS -->
+                  </select>
+                  <span class="ml-2">weeks starting</span>
+                  <input id="weeklyStart" type="date" class="ml-2 input" />
+                </div>
+              </label>
+
+              <label class="radio-item">
+                <input type="radio" name="cadence" value="semiMonthly" />
+                <span>Every 1st and 15th of the month</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Body CTAs removed in favor of header actions -->
+        </section>
+
+        <!-- View: Confirmation -->
+        <section id="view-confirmation" data-view class="card hidden p-6">
+          <h2 class="mb-2 text-lg font-semibold">You're all set</h2>
+          <p class="text-sm text-gray-600">We've scheduled your recurring donation. Below is a summary.</p>
+          <div class="mt-4 space-y-1 text-sm">
+            <div><span class="text-gray-500">Amount per installment:</span> <span id="confirmAmount" class="font-medium"></span></div>
+            <div><span class="text-gray-500">Cadence:</span> <span id="confirmCadence" class="font-medium"></span></div>
+            <div><span class="text-gray-500">Fee per installment:</span> <span id="confirmFee" class="font-medium"></span></div>
+            <div><span class="text-gray-500">Total charged per installment:</span> <span id="confirmTotal" class="font-medium"></span></div>
+            <div class="text-gray-500">A mock receipt would appear here.</div>
+          </div>
+          <div class="mt-6">
+            <button class="btn-primary" id="confirmDoneBtn">Done</button>
+          </div>
+        </section>
+      </div>
+
+      <!-- Right summary column -->
+      <aside id="rightAside" class="hidden">
+        <div class="card hidden p-6 overflow-auto rounded-none border-l border-border" id="summaryCard">
+          <h3 class="mb-4 text-[18px] font-semibold">You're sending a total of <span id="sumHeadlineTotal">$0.00</span> to Team Rubicon</h3>
+          <div class="space-y-3 text-sm" id="creditsItemization">
+            <!-- credit rows injected here when applied -->
+          </div>
+          <p class="mt-2 mb-3 px-0 py-2 text-xs text-gray-500 invisible" id="creditsNote">This will appear as multiple transactions in your giving history</p>
+          <div class="space-y-3 text-sm">
+            <div class="flex items-center justify-between"><span>Covered by your company</span><span id="sumCovered">$0.00</span></div>
+            <div class="flex items-center justify-between text-sky-700 font-semibold"><span>Amount due from you</span><span id="sumDue">$0.00</span></div>
+            <div class="flex items-center justify-between border-t pt-2 font-semibold"><span>Donation total</span><span id="sumTotal">$0.00</span></div>
+          </div>
+          <button id="checkoutBtnSide" class="mt-4 inline-flex w-full items-center justify-center rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-70"><span>Go to checkout</span><i class="ph-bold ph-arrow-right ml-2"></i></button>
+        </div>
+      </aside>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+  </html>
+
+
