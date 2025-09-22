@@ -192,6 +192,36 @@
         matchPerInstallment: 0,
 	};
     let isChooseOpen = false;
+    let isInitialRendered = false;
+
+    function resetAllState() {
+        state.donationType = null;
+        state.amount = 0;
+        state.otCreditsApplied = 0;
+        state.userCoversFee = false;
+        state.hasCredits = true;
+        state.cadence = null;
+        state.monthlyDay = null;
+        state.weeklyInterval = 1;
+        state.weeklyStart = null;
+        state.recurringStart = null;
+        state.endType = 'none';
+        state.recurringEnd = null;
+        state.employerCoversFee = false;
+        state.matchEdited = false;
+        state.note = '';
+        state.anonymous = false;
+        state.fundingMethod = 'bankSaved';
+        state.cardInfoAdded = false;
+        state.matchPerInstallment = 0;
+        // Clear common inputs visually where reasonable
+        if (inputs.customAmount) inputs.customAmount.value = '';
+        const chips = inputs.amountChips ? inputs.amountChips.querySelectorAll('.chip') : [];
+        chips && chips.forEach((el) => el.classList && el.classList.remove('active'));
+        if (inputs.otCustomAmount) inputs.otCustomAmount.value = '';
+        const oChips = inputs.otAmountChips ? inputs.otAmountChips.querySelectorAll('.chip') : [];
+        oChips && oChips.forEach((el) => el.classList && el.classList.remove('active'));
+    }
 
     function updateHeaderForView() {
         if (!header) return;
@@ -239,6 +269,10 @@
         // Hide header on start screen or when modal is open
         if (header) header.classList.toggle('hidden', view === 'start' || isChooseOpen);
         updateHeaderForView();
+        // If navigating back to start after initial render, clear all state
+        if (view === 'start' && isInitialRendered) {
+            resetAllState();
+        }
         // Keep main content centered always; toggle the floating receipt panel separately
         if (rightAside) {
             if (view === 'start') {
@@ -1340,14 +1374,8 @@ inputs.userCoversFee && inputs.userCoversFee.addEventListener('change', () => {
         if (mainEl) mainEl.classList.remove('hidden');
         const headerEl = document.getElementById('siteHeader');
         if (headerEl) headerEl.classList.add('hidden');
-        // Reset minimal state
-        state.view = 'start';
-        state.donationType = null;
-        state.amount = 0;
-        state.otCreditsApplied = 0;
-        state.matchEdited = false;
-        state.note = '';
-        state.anonymous = false;
+        // Reset all state
+        resetAllState();
         show('start');
         recomputeSummary();
     });
@@ -1393,13 +1421,11 @@ summary.employerCoversFee && summary.employerCoversFee.addEventListener('change'
 		recomputeSummary();
 	});
 
-	buttons.confirmDone.addEventListener('click', () => {
+    buttons.confirmDone.addEventListener('click', () => {
 		show('start');
-		// reset minimal state
-		state.donationType = null;
-		state.amount = 0;
-		state.cadence = null;
-        if (summary.employerCoversFee) summary.employerCoversFee.checked = false;
+		// reset all state
+		resetAllState();
+		if (summary.employerCoversFee) summary.employerCoversFee.checked = false;
 		recomputeSummary();
 	});
 
@@ -1407,6 +1433,7 @@ summary.employerCoversFee && summary.employerCoversFee.addEventListener('change'
 	show('start');
 	recomputeSummary();
     updateProgressBar();
+    isInitialRendered = true;
     window.addEventListener('resize', positionLeftMatchCard);
     window.addEventListener('scroll', positionLeftMatchCard, { passive: true });
 
