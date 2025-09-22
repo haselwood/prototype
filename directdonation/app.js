@@ -900,8 +900,10 @@
     function toggleCreditsUI() {
         const banner = document.getElementById('creditsBanner');
         const card = document.getElementById('creditsCardContainer');
+        const note = document.getElementById('creditsEligibilityNote');
         if (banner) banner.classList.toggle('hidden', !state.hasCredits);
         if (card) card.classList.toggle('hidden', !state.hasCredits);
+        if (note) note.classList.toggle('hidden', !state.hasCredits);
     }
 
     // Header back button behavior (context-aware)
