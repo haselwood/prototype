@@ -1149,7 +1149,7 @@
 		if (!btn) return;
 		const val = parseFloat(btn.getAttribute('data-amount')) || 0;
 		state.amount = val;
-		inputs.customAmount.value = '';
+		if (inputs.customAmount) inputs.customAmount.value = String(val);
 		inputs.amountError.classList.toggle('hidden', val >= 5);
 		Array.from(inputs.amountChips.querySelectorAll('.chip')).forEach((el) => el.classList.remove('active'));
 		btn.classList.add('active');
@@ -1196,7 +1196,7 @@
 		if (!btn) return;
 		const val = parseFloat(btn.getAttribute('data-amount')) || 0;
 		state.amount = val;
-		inputs.otCustomAmount.value = '';
+		if (inputs.otCustomAmount) inputs.otCustomAmount.value = String(val);
 		inputs.otAmountError.classList.toggle('hidden', val >= 5);
 		Array.from(inputs.otAmountChips.querySelectorAll('.chip')).forEach((el) => el.classList.remove('active'));
 		btn.classList.add('active');
