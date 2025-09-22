@@ -399,29 +399,16 @@
             const headerHeight = header ? header.offsetHeight : 0;
             const panelWidth = 384; // px
             const canFitRight = (window.innerWidth - (contentRect?.right || 0)) >= (panelWidth + 24);
-            if (canFitRight) {
-                // fixed to right below sticky header (accounts for scroll)
-                summary.card.style.position = 'fixed';
-                summary.card.style.top = headerHeight + 'px';
-                summary.card.style.right = '0';
-                summary.card.style.left = 'auto';
-                summary.card.style.bottom = '0';
-                summary.card.style.width = panelWidth + 'px';
-                summary.card.style.height = `calc(100vh - ${headerHeight}px)`;
-                // update left match card position
-                positionLeftMatchCard();
-            } else {
-                // bottom dock
-                summary.card.style.position = 'fixed';
-                summary.card.style.left = '0';
-                summary.card.style.right = '0';
-                summary.card.style.bottom = '0';
-                summary.card.style.top = 'auto';
-                summary.card.style.width = '100%';
-                summary.card.style.height = '50vh';
-                const leftAside = document.getElementById('leftMatchAside');
-                if (leftAside) leftAside.classList.add('hidden');
-            }
+            // Always use fixed right sheet for this prototype (no mobile bottom sheet)
+            summary.card.style.position = 'fixed';
+            summary.card.style.top = headerHeight + 'px';
+            summary.card.style.right = '0';
+            summary.card.style.left = 'auto';
+            summary.card.style.bottom = '0';
+            summary.card.style.width = panelWidth + 'px';
+            summary.card.style.height = `calc(100vh - ${headerHeight}px)`;
+            // update left match card position
+            positionLeftMatchCard();
         } else {
             // Hide the receipt panel, but keep/update the left match card visibility
             summary.card.classList.add('hidden');
