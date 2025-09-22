@@ -600,8 +600,11 @@
                     row.appendChild(left); row.appendChild(right);
                     return row;
                 };
-                group.appendChild(addRow('My pledge', 'This is your portion of this donation', pledge, 'border-b border-gray-200'));
-                group.appendChild(addRow('CBC Capital match', 'Your company is matching your pledge', matchFromCompany));
+                const isRec = (state.view === 'recurring') || (state.view === 'confirmation' && state.donationType === 'recurring');
+                const myLabel = isRec ? 'My pledge' : 'My donation';
+                const matchSub = 'Your company is matching your ' + (isRec ? 'pledge' : 'donation');
+                group.appendChild(addRow(myLabel, 'This is your portion of this donation', pledge, 'border-b border-gray-200'));
+                group.appendChild(addRow('CBC Capital match', matchSub, matchFromCompany));
                 summary.itemization.appendChild(group);
                 itemCount += 2;
             }
@@ -1016,7 +1019,8 @@
                 row.appendChild(left); row.appendChild(right);
                 pledgeConfirmEls.list.appendChild(row);
             }
-            pledgeConfirmEls.list.appendChild(addRow('My pledge', pledge));
+            const isRecConfirm = state.donationType === 'recurring';
+            pledgeConfirmEls.list.appendChild(addRow(isRecConfirm ? 'My pledge' : 'My donation', pledge));
             total += pledge + matchAmt; txn += 2;
         }
         if (pledgeConfirmEls.total) pledgeConfirmEls.total.textContent = toDollar(total);

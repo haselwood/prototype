@@ -194,16 +194,19 @@
             <h2 class="mb-1 text-[18px] font-semibold">Fund a donation and get a company match</h2>
           </div>
           <div class="card p-6 text-center">
-            <div class="flex flex-wrap justify-center gap-2" id="otAmountChips">
+              <div class="flex flex-wrap justify-center gap-2" id="otAmountChips">
               <button data-amount="5" class="chip">$5</button>
               <button data-amount="10" class="chip">$10</button>
               <button data-amount="50" class="chip">$50</button>
               <button data-amount="100" class="chip">$100</button>
               <button data-amount="500" class="chip">$500</button>
-              <div class="relative">
-                <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                <input id="otCustomAmount" type="number" min="0" step="0.01" placeholder="0" class="input h-10 pl-6" />
-              </div>
+                <div class="w-auto text-center">
+                  <div class="mb-1 text-[14px] font-medium text-gray-800">My donation</div>
+                  <div class="relative inline-block">
+                    <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                    <input id="otCustomAmount" type="number" min="0" step="0.01" placeholder="0" class="input h-10 pl-6 text-center" />
+                  </div>
+                </div>
             </div>
             <p id="otAmountError" class="mt-2 hidden text-sm text-red-600">Minimum is $5</p>
             <div id="matchDisplay" class="mt-3 hidden text-sm font-medium text-sky-700">
