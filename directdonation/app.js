@@ -778,8 +778,19 @@
 	})();
 
 	// Event wiring
-    buttons.startDonate.addEventListener('click', () => { state.hasCredits = true; openChooseModal(); });
-    buttons.startDonateNoCredits && buttons.startDonateNoCredits.addEventListener('click', () => { state.hasCredits = false; show('oneTime'); toggleCreditsUI(); recomputeSummary(); });
+    // Credits button → one-time only, preselected (no recurring modal)
+    buttons.startDonate.addEventListener('click', () => {
+        state.hasCredits = true;
+        state.donationType = 'oneTime';
+        show('oneTime');
+        toggleCreditsUI();
+        recomputeSummary();
+    });
+    // No-credits button → open modal to choose one-time or recurring
+    buttons.startDonateNoCredits && buttons.startDonateNoCredits.addEventListener('click', () => {
+        state.hasCredits = false;
+        openChooseModal();
+    });
     buttons.oneTimeBack && buttons.oneTimeBack.addEventListener('click', () => openChooseModal());
     buttons.recurringBack && buttons.recurringBack.addEventListener('click', () => openChooseModal());
     // Header/side actions
