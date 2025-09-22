@@ -458,7 +458,7 @@
         }
 
         const pledge = state.amount || 0;
-        const credits = state.view === 'oneTime' ? (state.otCreditsApplied || 0) : 0;
+        const credits = (state.view === 'oneTime' && state.hasCredits) ? (state.otCreditsApplied || 0) : 0;
         let matchFromCompany = 0;
         const isRecurring = state.view === 'recurring' || (state.view === 'confirmation' && state.donationType === 'recurring');
         if (isRecurring) {
@@ -480,7 +480,7 @@
         }
         const donationTotal = pledge + credits + matchFromCompany; // total donated to org includes company match
         const feeBase = Math.max(0, pledge); // fees apply only to user's pledge
-        const fee = isRecurring ? (state.fundingMethod === 'card' ? feeBase * 0.029 : 0) : feeFor(feeBase);
+        const fee = isRecurring ? 0 : feeFor(feeBase);
         const total = pledge + fee; // amount due from user
         if (summary.headlineTotal) summary.headlineTotal.textContent = toDollar(donationTotal);
         if (summary.covered) summary.covered.textContent = toDollar(credits + matchFromCompany);
@@ -503,6 +503,9 @@
         // Update sidebar cadence text when recurring
         const sideCadence = document.getElementById('sideCadenceText');
         if (sideCadence) {
+            const i1 = document.getElementById('sumIconDue');
+            const i2 = document.getElementById('sumIconCovered');
+            const i3 = document.getElementById('sumIconTotal');
             if (isRecurring && state.cadence) {
                 let text = '';
                 if (state.cadence === 'monthly') {
@@ -525,23 +528,35 @@
                     const yy = String(start.getFullYear()).toString().slice(-2);
                     text += `, starting ${mm}/${dd}/${yy}`;
                 }
-                sideCadence.textContent = text;
+                sideCadence.innerHTML = `<span class="inline-flex items-center gap-2"><i class="ph-bold ph-arrows-clockwise"></i><span>${text}</span></span>`;
                 sideCadence.classList.remove('hidden');
-                // Ensure icons show only for recurring
-                const i1 = document.getElementById('sumIconDue');
-                const i2 = document.getElementById('sumIconCovered');
-                const i3 = document.getElementById('sumIconTotal');
-                i1 && i1.classList.remove('hidden');
-                i2 && i2.classList.remove('hidden');
-                i3 && i3.classList.remove('hidden');
-            } else {
-                sideCadence.classList.add('hidden');
-                const i1 = document.getElementById('sumIconDue');
-                const i2 = document.getElementById('sumIconCovered');
-                const i3 = document.getElementById('sumIconTotal');
+                // Keep sidebar icons hidden for recurring
                 i1 && i1.classList.add('hidden');
                 i2 && i2.classList.add('hidden');
                 i3 && i3.classList.add('hidden');
+            } else {
+                sideCadence.classList.add('hidden');
+                i1 && i1.classList.add('hidden');
+                i2 && i2.classList.add('hidden');
+                i3 && i3.classList.add('hidden');
+            }
+            // On recurring, hide the due and covered rows; remove tally line; indent only the total amount by 16px
+            const dueRow = i1 && i1.closest ? i1.closest('div') : null;
+            const coveredRow = i2 && i2.closest ? i2.closest('div') : null;
+            const totalRow = i3 && i3.closest ? i3.closest('div') : null;
+            const totalAmt = document.getElementById('sumTotal');
+            if (isRecurring) {
+                dueRow && dueRow.classList.add('hidden');
+                coveredRow && coveredRow.classList.add('hidden');
+                // remove border/pt tally line on total row
+                if (totalRow) { totalRow.classList.remove('border-t', 'pt-2'); }
+                // indent amount by 16px
+                totalAmt && totalAmt.classList.add('pl-4');
+            } else {
+                dueRow && dueRow.classList.remove('hidden');
+                coveredRow && coveredRow.classList.remove('hidden');
+                if (totalRow) { totalRow.classList.add('border-t', 'pt-2'); }
+                totalAmt && totalAmt.classList.remove('pl-4');
             }
         }
 
@@ -579,6 +594,7 @@
             let lastCard; // to connect pledge and match visually regardless of credits count
             // gather checked credit rows
             inputs.creditRows().forEach((row) => {
+                if (!state.hasCredits) return; // skip any credits when hasCredits is false
                 const enabled = row.querySelector('.credit-enable').checked;
                 const labelEl = row.querySelector('label span');
                 const name = labelEl ? labelEl.querySelector('.font-medium')?.textContent || labelEl.textContent : 'Donation credit';
@@ -684,6 +700,10 @@
 
     // Funding fee math
     function computeFundingFees(amount, method, coverFixed, includeCardPercent) {
+        // For recurring, the user does not pay fees
+        if (state.donationType === 'recurring') {
+            return { fixedDisplay: 0, card: 0, dueFee: 0 };
+        }
         const fixedDisplay = 0.50; // always show as positive in summary row
         const card = includeCardPercent && method === 'card' ? amount * 0.029 : 0; // percent portion (always positive)
         const dueFee = (coverFixed ? 0.50 : 0) + card; // what the user actually pays in fees
@@ -702,17 +722,17 @@
             titleEl.textContent = `How do you want to fund your ${toDollar(pledge)} portion of the recurring donation?`;
         }
         const donationLabel = document.getElementById('fundingDonationLabel');
-        if (donationLabel && state.donationType === 'recurring') donationLabel.textContent = 'Your pledge';
+        if (donationLabel && state.donationType === 'recurring') donationLabel.textContent = 'Your recurring pledge';
         if (fundingEls.gsaBalanceLabel) fundingEls.gsaBalanceLabel.textContent = toDollar(state.gsaBalance);
         const coverFee = !!(fundingEls.coverFee && fundingEls.coverFee.checked);
         // Card processing fee cannot be waived; only the fixed fee is waived
-        const includeCardPct = state.fundingMethod === 'card';
+        const includeCardPct = state.donationType === 'recurring' ? false : (state.fundingMethod === 'card');
         const fees = computeFundingFees(pledge, state.fundingMethod, coverFee, includeCardPct);
         if (fundingEls.balance) fundingEls.balance.textContent = toDollar(pledge);
-        if (fundingEls.feeFixed) fundingEls.feeFixed.textContent = toDollar(fees.fixedDisplay);
-        if (fundingEls.feeCardRow) fundingEls.feeCardRow.classList.toggle('hidden', !includeCardPct);
-        if (fundingEls.feeCard) fundingEls.feeCard.textContent = toDollar(fees.card);
-        const totalDue = pledge + fees.dueFee;
+        if (fundingEls.feeFixed) fundingEls.feeFixed.textContent = toDollar(state.donationType === 'recurring' ? 0 : fees.fixedDisplay);
+        if (fundingEls.feeCardRow) fundingEls.feeCardRow.classList.toggle('hidden', state.donationType === 'recurring' ? true : !includeCardPct);
+        if (fundingEls.feeCard) fundingEls.feeCard.textContent = toDollar(state.donationType === 'recurring' ? 0 : fees.card);
+        const totalDue = pledge + (state.donationType === 'recurring' ? 0 : fees.dueFee);
         if (fundingEls.total) fundingEls.total.textContent = toDollar(totalDue);
         if (fundingEls.donationRow) fundingEls.donationRow.textContent = toDollar(pledge);
         // Show contextual action buttons
@@ -731,6 +751,9 @@
         // Groundswell insufficient
         const insufficient = state.fundingMethod === 'gsa' && state.gsaBalance < pledge;
         if (fundingEls.gsaError) fundingEls.gsaError.classList.toggle('hidden', !insufficient);
+        // Hide cover fee checkbox on recurring funding screen
+        const coverWrap = document.getElementById('coverFeeFunding')?.closest('label');
+        coverWrap && coverWrap.classList.toggle('hidden', state.donationType === 'recurring');
         // Toggle header cta
         const canContinue = !insufficient;
         if (buttons.checkout) buttons.checkout.disabled = !canContinue;
@@ -814,6 +837,7 @@
     // No-credits button → open modal to choose one-time or recurring
     buttons.startDonateNoCredits && buttons.startDonateNoCredits.addEventListener('click', () => {
         state.hasCredits = false;
+        state.otCreditsApplied = 0; // ensure no stale credit carries into sidebar
         openChooseModal();
     });
     buttons.oneTimeBack && buttons.oneTimeBack.addEventListener('click', () => openChooseModal());
@@ -918,7 +942,9 @@
         const note = document.getElementById('creditsEligibilityNote');
         if (banner) banner.classList.toggle('hidden', !state.hasCredits);
         if (card) card.classList.toggle('hidden', !state.hasCredits);
-        if (note) note.classList.toggle('hidden', !state.hasCredits);
+        if (note) note.classList.add('hidden');
+        // Also clear credits when toggled off
+        if (!state.hasCredits) state.otCreditsApplied = 0;
     }
 
     // Header back button behavior (context-aware)
