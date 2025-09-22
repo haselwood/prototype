@@ -55,7 +55,11 @@
       <div id="leftCol" class="md:col-span-12">
         <!-- View: Start -->
         <section id="view-start" data-view class="flex min-h-screen w-full transform -translate-y-[300px] flex-col items-center justify-center">
-          <button id="startDonateBtn" class="mx-auto inline-flex items-center rounded-md bg-zinc-900 px-6 py-3 text-base font-medium text-white hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-900">Donate</button>
+          <h1 class="mb-4 text-3xl font-semibold">Direct Donation Checkout</h1>
+          <div class="flex flex-col items-center gap-2">
+            <button id="startDonateBtn" class="inline-flex items-center rounded-md bg-zinc-900 px-6 py-3 text-base font-medium text-white hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-900">Donate (Donation Credits)</button>
+            <button id="startDonateNoCreditsBtn" class="inline-flex items-center rounded-md bg-zinc-900 px-6 py-3 text-base font-medium text-white hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-900">Donate one-time (No credits)</button>
+          </div>
         </section>
 
         <!-- View: Choose frequency (modal overlay) -->
@@ -118,11 +122,11 @@
             <div class="mt-3 text-sm font-medium text-gray-800">Donate to Team Rubicon</div>
           </div>
 
-          <div class="text-center">
+          <div id="creditsBanner" class="text-center">
             <h3 class="mb-1 text-[18px] font-semibold">You have credits available from CBC Capital</h3>
             <p class="mb-2 text-[14px] text-gray-600">Use donation credits alone or with your own donation</p>
           </div>
-          <div class="card p-0 credits-card">
+          <div id="creditsCardContainer" class="card p-0 credits-card">
             <div class="rounded-t-md rounded-b-none border border-gray-200 bg-gray-50 p-3 px-6">
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-3">

@@ -47,6 +47,7 @@
 	const buttons = {
 		checkout: document.getElementById('checkoutBtn'),
 		startDonate: document.getElementById('startDonateBtn'),
+		startDonateNoCredits: document.getElementById('startDonateNoCreditsBtn'),
 		backToDonation: document.getElementById('backToDonationBtn'),
 		chooseBack: document.getElementById('chooseBackBtn'),
 		chooseContinue: document.getElementById('chooseContinueBtn'),
@@ -142,6 +143,7 @@
 		amount: 0,
 		otCreditsApplied: 0,
 		userCoversFee: false,
+        hasCredits: true,
 		cadence: null, // 'monthly' | 'weekly' | 'semiMonthly'
 		monthlyDay: null,
 		weeklyInterval: 1,
@@ -575,7 +577,8 @@
 	})();
 
 	// Event wiring
-    buttons.startDonate.addEventListener('click', () => openChooseModal());
+    buttons.startDonate.addEventListener('click', () => { state.hasCredits = true; openChooseModal(); });
+    buttons.startDonateNoCredits && buttons.startDonateNoCredits.addEventListener('click', () => { state.hasCredits = false; show('oneTime'); toggleCreditsUI(); recomputeSummary(); });
     buttons.oneTimeBack && buttons.oneTimeBack.addEventListener('click', () => openChooseModal());
     buttons.recurringBack && buttons.recurringBack.addEventListener('click', () => openChooseModal());
     // Header/side actions
@@ -671,10 +674,17 @@
     buttons.chooseContinue.addEventListener('click', () => {
         const selected = state.donationType; // capture before modal clears state
         closeChooseModal();
-        if (selected === 'oneTime') show('oneTime');
+        if (selected === 'oneTime') { show('oneTime'); toggleCreditsUI(); }
         if (selected === 'recurring') show('recurring');
         recomputeSummary();
     });
+
+    function toggleCreditsUI() {
+        const banner = document.getElementById('creditsBanner');
+        const card = document.getElementById('creditsCardContainer');
+        if (banner) banner.classList.toggle('hidden', !state.hasCredits);
+        if (card) card.classList.toggle('hidden', !state.hasCredits);
+    }
 
     // Header back to donation
     buttons.backToDonation && buttons.backToDonation.addEventListener('click', () => {
