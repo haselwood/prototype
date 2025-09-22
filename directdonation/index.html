@@ -37,7 +37,7 @@
     <header id="siteHeader" class="hidden sticky top-0 z-50 w-full border-b border-border bg-white">
       <div class="relative flex items-center px-6 py-2 gap-2">
         <button id="exitBtn" class="btn-outline text-sm">Exit</button>
-        <button id="backToDonationBtn" class="btn-outline text-sm hidden">Back to donation</button>
+        <button id="backToDonationBtn" class="btn-outline text-sm hidden">Back to funding source</button>
         <div class="absolute left-1/2 -translate-x-1/2 text-base font-semibold text-zinc-900">Make a one-time donation</div>
         
       </div>
@@ -444,6 +444,63 @@
           </div>
         </section>
 
+        <!-- View: One-time Pledge/Match Confirmation -->
+        <section id="view-oneTimePledgeConfirm" data-view class="hidden">
+          <div id="pledgeConfirmContent" class="mx-auto max-w-[448px] space-y-6 mt-6">
+            <div class="flex items-center justify-center">
+              <div class="flex items-center justify-center h-16 w-16 rounded-full bg-red-600 text-white text-xl font-semibold">T</div>
+            </div>
+
+            <div class="text-center">
+              <h3 id="pledgeReviewTitle" class="mb-1 text-[18px] font-semibold">Let's review your $0.00 donation to Team Rubicon</h3>
+            </div>
+
+            <div class="card p-0 overflow-hidden">
+              <div class="rounded-md bg-white p-0">
+                <div id="pledgeReviewList" class="">
+                  <!-- credit + pledge/match rows injected here -->
+                </div>
+                <div class="px-4">
+                  <div class="flex items-center justify-between py-3 border-t border-gray-200">
+                    <div class="text-[14px] font-medium">Total donation</div>
+                    <div id="pledgeReviewTotal" class="text-[14px] font-semibold">$0.00</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="-mt-3 text-sm text-gray-500 flex items-center gap-1 px-1">
+              <span>This will appear as <span id="pledgeReviewTxnCount">1</span> transactions in your giving history</span>
+              <span class="relative inline-flex items-center group">
+                <i class="ph-bold ph-info text-gray-400" style="font-size:16px"></i>
+                <span role="tooltip" class="pointer-events-none absolute left-1/2 top-full z-10 hidden -translate-x-1/2 mt-1 whitespace-normal text-left w-[300px] max-w-[300px] rounded-md bg-zinc-900 px-2 py-1 text-[11px] text-white group-hover:block">We're bundling your donation to make it easy for you to give. When communicating with a charity or looking at your giving history, be aware that these line items will appear as separate transactions</span>
+              </span>
+            </div>
+
+            <div class="card p-4">
+              <div class="mb-2 text-sm font-medium">Add a message to Team Rubicon</div>
+              <textarea id="pledgeNote" rows="4" class="input w-full" placeholder=" Add a note to your donation"></textarea>
+              <label class="mt-3 flex items-center gap-2 text-sm"><input id="pledgeAnonymous" type="checkbox" class="h-4 w-4 accent-sky-700" /><span>Make my donation anonymous</span></label>
+            </div>
+
+            <div class="space-y-4">
+              <div class="flex items-center justify-between text-[16px] font-semibold text-sky-700">
+                <span>Amount due from you</span>
+                <span id="pledgeDue">$0.00</span>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between text-sm font-semibold">
+              <div>How you'll pay</div>
+              <div id="pledgePayMethod" class="text-[#111827]"></div>
+            </div>
+
+            <div>
+              <button id="pledgeDonateBtn" class="w-full inline-flex items-center justify-center rounded-md bg-zinc-900 px-6 py-3 text-sm font-medium text-white"><i class="ph-duotone ph-money mr-2 text-[18px]"></i><span>Donate and pay $0.00</span></button>
+            </div>
+          </div>
+        </section>
+
         <!-- View: Confirmation -->
         <section id="view-confirmation" data-view class="card hidden p-6">
           <h2 class="mb-2 text-lg font-semibold">You're all set</h2>
@@ -482,8 +539,8 @@
     <section id="donateSuccess" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/60 p-4">
       <canvas id="donateConfetti" class="pointer-events-none absolute inset-0 z-[59]"></canvas>
       <div class="relative z-[60] card w-full max-w-md overflow-hidden p-8">
-        <div class="text-lg font-semibold mb-2 hidden" id="donateCharged">You were charged $0.00</div>
-        <div class="text-[20px] font-semibold leading-snug mb-6">Thank you! Your total impact of <span id="donateImpact">$0.00</span> is on its way to</div>
+        <div class="text-lg font-semibold mb-4 hidden" id="donateCharged">You were charged $0.00</div>
+        <div class="text-[20px] font-semibold leading-snug mb-6">Thank you! Your total donation of <span id="donateImpact">$0.00</span> is on its way to</div>
         <div class="flex items-center gap-3 mb-8">
           <span class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-red-600 text-white font-semibold">T</span>
           <span class="text-[16px] font-semibold">Team Rubicon</span>

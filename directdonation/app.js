@@ -5,6 +5,7 @@
         oneTimeFunding: document.getElementById('view-oneTimeFunding'),
         recurring: document.getElementById('view-recurring'),
         oneTimeConfirm: document.getElementById('view-oneTimeConfirm'),
+        oneTimePledgeConfirm: document.getElementById('view-oneTimePledgeConfirm'),
         confirmation: document.getElementById('view-confirmation'),
     };
 
@@ -86,6 +87,17 @@
         note: document.getElementById('npoNote'),
         anonymous: document.getElementById('npoAnonymous'),
         donateSubmit: document.getElementById('donateSubmit'),
+    };
+    const pledgeConfirmEls = {
+        title: document.getElementById('pledgeReviewTitle'),
+        list: document.getElementById('pledgeReviewList'),
+        total: document.getElementById('pledgeReviewTotal'),
+        txn: document.getElementById('pledgeReviewTxnCount'),
+        payMethod: document.getElementById('pledgePayMethod'),
+        note: document.getElementById('pledgeNote'),
+        anonymous: document.getElementById('pledgeAnonymous'),
+        due: document.getElementById('pledgeDue'),
+        donateBtn: document.getElementById('pledgeDonateBtn'),
     };
     const fundingEls = {
         amountLabel: document.getElementById('fundingAmountLabel'),
@@ -583,17 +595,9 @@
             return;
         }
         if (state.view === 'oneTimeFunding') {
-            // Proceed to final confirmation
-            const pledge = state.amount || 0;
-            const coverFixed = !!(fundingEls.coverFee && fundingEls.coverFee.checked);
-            const includeCardPct = state.fundingMethod === 'card';
-            const fees = computeFundingFees(pledge, state.fundingMethod, coverFixed, includeCardPct);
-            confirmEls.amount.textContent = toDollar(pledge);
-            confirmEls.cadence.textContent = 'One-time';
-            confirmEls.fee.textContent = toDollar(fees.dueFee);
-            confirmEls.total.textContent = toDollar(pledge + fees.dueFee);
-            show('confirmation');
-            recomputeSummary();
+            // Proceed to pledge/match confirmation
+            show('oneTimePledgeConfirm');
+            renderPledgeConfirm();
             return;
         }
         if (state.view === 'oneTime' && canProceedOneTime()) {
@@ -707,6 +711,84 @@
             // fallback: proceed
             triggerCheckout();
         }
+    });
+
+    function renderPledgeConfirm() {
+        header && header.classList.remove('hidden');
+        updateProgressBar();
+        // Build list
+        if (pledgeConfirmEls.list) pledgeConfirmEls.list.innerHTML = '';
+        let txn = 0; let total = 0;
+        // credits
+        inputs.creditRows().forEach((row) => {
+            const enabled = row.querySelector('.credit-enable').checked;
+            const input = row.querySelector('.credit-input');
+            const labelEl = row.querySelector('label span');
+            const name = labelEl ? labelEl.querySelector('.font-medium')?.textContent || labelEl.textContent : 'Donation credit';
+            const val = enabled ? (parseFloat(input.value) || 0) : 0;
+            if (enabled && val > 0) {
+                const item = document.createElement('div');
+                item.className = 'flex items-center justify-between px-4 py-2';
+                const left = document.createElement('div'); left.className = 'text-[14px]'; left.textContent = name.trim();
+                const right = document.createElement('div'); right.className = 'text-[14px] text-emerald-700 font-medium'; right.textContent = toDollar(val);
+                item.appendChild(left); item.appendChild(right);
+                pledgeConfirmEls.list.appendChild(item);
+                total += val; txn++;
+            }
+        });
+        const pledge = state.amount || 0;
+        if (pledge > 0) {
+            // pledge and match
+            const addRow = (label, amount) => {
+                const row = document.createElement('div');
+                row.className = 'flex items-center justify-between px-4 py-2';
+                const left = document.createElement('div'); left.className = 'text-[14px]'; left.textContent = label;
+                const right = document.createElement('div'); right.className = 'text-[14px] font-medium'; right.textContent = toDollar(amount);
+                row.appendChild(left); row.appendChild(right); return row;
+            };
+            const matchAmt = pledge; // 1x default behavior for prototype
+            // Match first (green), then my donation
+            {
+                const row = document.createElement('div');
+                row.className = 'flex items-center justify-between px-4 py-2';
+                const left = document.createElement('div'); left.className = 'text-[14px]'; left.textContent = 'CBC Capital match';
+                const right = document.createElement('div'); right.className = 'text-[14px] text-emerald-700 font-medium'; right.textContent = toDollar(matchAmt);
+                row.appendChild(left); row.appendChild(right);
+                pledgeConfirmEls.list.appendChild(row);
+            }
+            pledgeConfirmEls.list.appendChild(addRow('My donation', pledge));
+            total += pledge + matchAmt; txn += 2;
+        }
+        if (pledgeConfirmEls.total) pledgeConfirmEls.total.textContent = toDollar(total);
+        if (pledgeConfirmEls.txn) pledgeConfirmEls.txn.textContent = String(txn);
+        // Pay method
+        if (pledgeConfirmEls.payMethod) {
+            let label = '';
+            if (state.fundingMethod === 'bankSaved') label = 'Chase -XXXX';
+            if (state.fundingMethod === 'bankSaved2') label = 'Wells Fargo -1234';
+            if (state.fundingMethod === 'bankAdd') label = 'Bank account';
+            if (state.fundingMethod === 'gsa') label = 'Groundswell Giving Account';
+            if (state.fundingMethod === 'card') label = 'Card via Stripe';
+            pledgeConfirmEls.payMethod.textContent = label;
+        }
+        // Due and CTA
+        const coverFixed = !!(fundingEls.coverFee && fundingEls.coverFee.checked);
+        const includeCardPct = state.fundingMethod === 'card';
+        const fees = computeFundingFees(pledge, state.fundingMethod, coverFixed, includeCardPct);
+        const due = pledge + fees.dueFee;
+        if (pledgeConfirmEls.due) pledgeConfirmEls.due.textContent = toDollar(due);
+        if (pledgeConfirmEls.title) pledgeConfirmEls.title.textContent = `Let's review your ${toDollar(total)} donation to Team Rubicon`;
+        if (pledgeConfirmEls.donateBtn) pledgeConfirmEls.donateBtn.querySelector('span').textContent = `Donate and pay ${toDollar(due)}`;
+        // Note/anon defaults from state
+        if (pledgeConfirmEls.note) pledgeConfirmEls.note.value = state.note || '';
+        if (pledgeConfirmEls.anonymous) pledgeConfirmEls.anonymous.checked = !!state.anonymous;
+    }
+
+    pledgeConfirmEls.donateBtn && pledgeConfirmEls.donateBtn.addEventListener('click', () => {
+        // Reuse existing success modal flow with due amount
+        const dueText = pledgeConfirmEls.due ? pledgeConfirmEls.due.textContent : '$0.00';
+        if (successEls.charged) successEls.charged.textContent = `You were charged ${dueText}`;
+        openSuccessModal();
     });
     // Open modals
     document.getElementById('addBankBtn')?.addEventListener('click', () => {
@@ -901,9 +983,14 @@ inputs.userCoversFee && inputs.userCoversFee.addEventListener('change', () => {
 
     // Donate submit → show success modal with total impact
     function openSuccessModal() {
-        const totalImpact = reviewEls.totalOrg ? reviewEls.totalOrg.textContent : toDollar(0);
-        const amountDue = toDollar(0);
-        // Hide charged line for credits-only (amountDue $0.00), show otherwise
+        const inPledgeConfirm = views.oneTimePledgeConfirm && !views.oneTimePledgeConfirm.classList.contains('hidden');
+        const impactText = inPledgeConfirm
+            ? (pledgeConfirmEls.total ? pledgeConfirmEls.total.textContent : toDollar(0))
+            : (reviewEls.totalOrg ? reviewEls.totalOrg.textContent : toDollar(0));
+        const amountDue = inPledgeConfirm
+            ? (pledgeConfirmEls.due ? pledgeConfirmEls.due.textContent : toDollar(0))
+            : toDollar(0);
+        // Show/hide charged line
         if (successEls.charged) {
             if (amountDue === toDollar(0)) {
                 successEls.charged.classList.add('hidden');
@@ -912,9 +999,10 @@ inputs.userCoversFee && inputs.userCoversFee.addEventListener('change', () => {
                 successEls.charged.classList.remove('hidden');
             }
         }
-        if (successEls.impact && typeof totalImpact === 'string') successEls.impact.textContent = totalImpact;
+        if (successEls.impact && typeof impactText === 'string') successEls.impact.textContent = impactText;
         if (successEls.txnText) {
-            const count = parseInt(reviewEls.txnCount?.textContent || '1', 10) || 1;
+            const countText = inPledgeConfirm ? (pledgeConfirmEls.txn ? pledgeConfirmEls.txn.textContent : '1') : (reviewEls.txnCount ? reviewEls.txnCount.textContent : '1');
+            const count = parseInt(countText || '1', 10) || 1;
             successEls.txnText.textContent = `This will appear as ${count} transaction${count === 1 ? '' : 's'} in your giving history`;
         }
         if (successEls.overlay) {
