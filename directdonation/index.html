@@ -221,23 +221,23 @@
                 <input id="matchAmountInput" type="number" min="0" step="0.01" class="input h-10 w-40 pl-6 text-center" value="0.00" />
               </div>
             </div>
-          </div>
-          <!-- Center match program card under the donation box -->
-          <div class="card p-6 mt-4" style="background:#F4F4F5">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <div class="flex h-10 w-10 items-center justify-center rounded-full bg-sky-700 text-white font-semibold">C</div>
-                <div class="font-medium">CBC Capital</div>
+            <!-- Moved: One-time match program card inside donation box -->
+            <div class="card p-6 mt-4 text-left" style="background:#F4F4F5">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <div class="flex h-10 w-10 items-center justify-center rounded-full bg-sky-700 text-white font-semibold">C</div>
+                  <div class="font-medium">CBC Capital</div>
+                </div>
+                <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">1x match</span>
               </div>
-              <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">1x match</span>
-            </div>
-            <div class="mt-2 text-[14px] font-semibold text-gray-800">$450 match available</div>
-            <div class="mt-2 h-2 w-full rounded bg-gray-200">
-              <div class="h-2 rounded" style="width:45%; background:#0EA5E9"></div>
-            </div>
-            <div class="mt-1 flex items-center justify-between text-[14px] text-[#71717A]">
-              <span>$550/$1,000 used</span>
-              <span>Ends 12/31/25</span>
+              <div class="mt-2 text-[14px] font-semibold text-gray-800">$450 match available</div>
+              <div class="mt-2 h-2 w-full rounded bg-gray-200">
+                <div class="h-2 rounded" style="width:45%; background:#0EA5E9"></div>
+              </div>
+              <div class="mt-1 flex items-center justify-between text-[14px] text-[#71717A]">
+                <span>$550/$1,000 used</span>
+                <span>Ends 12/31/25</span>
+              </div>
             </div>
           </div>
           <div class="clear-both"></div>
@@ -332,33 +332,34 @@
                   <input id="recurringMatchInput" type="number" min="0" step="0.01" class="input h-10 w-40 pl-6 text-center" value="0.00" />
                 </div>
               </div>
+              <div id="recurringProgramCard" class="card p-6 mt-4 text-left" style="background:#F4F4F5">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-full bg-sky-700 text-white font-semibold">C</div>
+                    <div class="font-medium" id="programName">CBC Capital</div>
+                  </div>
+                  <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">1x match</span>
+                </div>
+                <div class="mt-2 text-[14px] font-semibold text-gray-800"><span id="programAvailableLabel">$450</span> match available</div>
+                <div class="mt-2 h-2 w-full rounded bg-gray-200 relative overflow-hidden">
+                  <div class="h-2 rounded absolute left-0 top-0 z-[1] hidden" id="programProjectedBar" style="width:55%; background:#F59E0B"></div>
+                  <div class="h-2 rounded absolute left-0 top-0 z-[2]" id="programUsedBar" style="width:55%; background:#0EA5E9"></div>
+                </div>
+                <div class="mt-1 text-[12px] text-[#71717A] space-y-1">
+                  <div class="flex items-center justify-between">
+                    <span class="inline-flex items-center gap-2"><span class="inline-block h-3 w-3 rounded-full" style="background:#0EA5E9"></span><span>Match used • <span id="programUsedText">$550</span>/<span id="programCapText">$1,000</span></span></span>
+                    <span>Ends <span id="programExpiresText">12/31/25</span></span>
+                  </div>
+                  <div id="programProjectedRow" class="flex items-center justify-between hidden">
+                    <span class="inline-flex items-center gap-2"><span class="inline-block h-3 w-3 rounded-full" style="background:#F59E0B"></span><span>Match pledged with this recurring match • <span id="programProjectedText">$0</span>/<span id="programCapText2">$1,000</span></span></span>
+                  </div>
+                </div>
+              </div>
             </div>
 
             
 
-            <div class="card p-6" id="recurringProgramCard" style="background:#F4F4F5">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <div class="flex h-10 w-10 items-center justify-center rounded-full bg-sky-700 text-white font-semibold">C</div>
-                  <div class="font-medium" id="programName">CBC Capital</div>
-                </div>
-                <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">1x match</span>
-              </div>
-              <div class="mt-2 text-[14px] font-semibold text-gray-800"><span id="programAvailableLabel">$450</span> match available</div>
-              <div class="mt-2 h-2 w-full rounded bg-gray-200 relative overflow-hidden">
-                <div class="h-2 rounded absolute left-0 top-0 z-[1] hidden" id="programProjectedBar" style="width:55%; background:#F59E0B"></div>
-                <div class="h-2 rounded absolute left-0 top-0 z-[2]" id="programUsedBar" style="width:55%; background:#0EA5E9"></div>
-              </div>
-              <div class="mt-1 text-[12px] text-[#71717A] space-y-1">
-                <div class="flex items-center justify-between">
-                  <span class="inline-flex items-center gap-2"><span class="inline-block h-3 w-3 rounded-full" style="background:#0EA5E9"></span><span>Match used • <span id="programUsedText">$550</span>/<span id="programCapText">$1,000</span></span></span>
-                  <span>Ends <span id="programExpiresText">12/31/25</span></span>
-                </div>
-                <div id="programProjectedRow" class="flex items-center justify-between hidden">
-                  <span class="inline-flex items-center gap-2"><span class="inline-block h-3 w-3 rounded-full" style="background:#F59E0B"></span><span>Match pledged with this recurring match • <span id="programProjectedText">$0</span>/<span id="programCapText2">$1,000</span></span></span>
-                </div>
-              </div>
-            </div>
+            
           </div>
         </section>
 
@@ -624,7 +625,7 @@
           <span class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-red-600 text-white font-semibold">T</span>
           <span class="text-[16px] font-semibold">Team Rubicon</span>
         </div>
-        <div id="donateRecurringNote" class="hidden text-sm text-gray-600 mb-3">You can remove reocurring donations from the Groundswell homepage</div>
+        <div id="donateRecurringNote" class="hidden text-sm text-gray-600 mb-3">You can remove recurring donations from the Groundswell homepage</div>
         <button id="donateCloseBtn" class="inline-flex w-full items-center justify-center rounded-md bg-zinc-900 px-3 py-3 text-sm font-medium text-white">Close</button>
       </div>
     </section>
