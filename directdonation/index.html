@@ -37,9 +37,9 @@
     <header id="siteHeader" class="hidden sticky top-0 z-50 w-full border-b border-border bg-white">
       <div class="relative flex items-center px-6 py-2 gap-2">
         <button id="exitBtn" class="btn-outline text-sm">Exit</button>
-        <button id="backToDonationBtn" class="btn-outline text-sm hidden">Back to funding source</button>
-        <div class="absolute left-1/2 -translate-x-1/2 text-base font-semibold text-zinc-900">Make a one-time donation</div>
-        
+        <button id="backToDonationBtn" class="btn-outline text-sm hidden">Back to pledge</button>
+        <div id="headerTitle" class="absolute left-1/2 -translate-x-1/2 text-base font-semibold text-zinc-900">Make a one-time donation</div>
+        <button id="checkoutBtn" class="hidden absolute right-6 inline-flex items-center rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white">Select a funding source</button>
       </div>
       <!-- Sticky progress bar under header -->
       <div id="progressContainer" class="hidden">
@@ -63,7 +63,7 @@
         </section>
 
         <!-- View: Choose frequency (modal overlay) -->
-        <section id="view-choose" data-view class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black/60 p-4">
+        <section id="view-choose" data-view class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 p-4">
           <div class="card w-full max-w-3xl overflow-hidden">
             <div class="flex items-center justify-between px-6 pt-4 pb-4">
               <h2 class="text-base font-semibold">What type of donation are you making?</h2>
@@ -240,62 +240,128 @@
         </section>
 
         <!-- View: Recurring -->
-        <section id="view-recurring" data-view class="hidden space-y-6">
-          <div class="card p-6">
-            <h2 class="mb-4 text-lg font-semibold">Choose your amount</h2>
-            <div class="flex flex-wrap gap-2" id="amountChips">
-              <button data-amount="5" class="chip">$5</button>
-              <button data-amount="10" class="chip">$10</button>
-              <button data-amount="50" class="chip">$50</button>
-              <button data-amount="100" class="chip">$100</button>
-              <button data-amount="500" class="chip">$500</button>
-              <div class="relative">
-                <span class="pointer-events-none absolute left-3 top-2 text-gray-500">$</span>
-                <input id="customAmount" type="number" min="0" step="0.01" placeholder="Custom" class="input pl-6" />
+        <section id="view-recurring" data-view class="hidden">
+          <div id="recurringCenterContent" class="mx-auto max-w-[448px] space-y-6 mt-6">
+            <div class="card bg-zinc-100 flex flex-col items-center justify-center" style="height:144px">
+              <div class="flex items-center justify-center h-16 w-16 rounded-full bg-red-600 text-white text-xl font-semibold">T</div>
+              <div class="mt-3 text-sm font-medium text-gray-800">Donate to Team Rubicon</div>
+            </div>
+
+            <div class="card p-6">
+              <div class="mb-2 text-[14px] font-medium text-gray-800">How often do you want this donation to occur?</div>
+              <select id="recurrencePreset" class="input w-full mb-4">
+                <option value="" selected disabled>Select frequency</option>
+                <option value="monthly">Once a month</option>
+                <option value="weekly2">Every 2 weeks</option>
+                <option value="semiMonthly">Monthly, on the 1st and 15th</option>
+                <option value="customWeekly">Set custom</option>
+              </select>
+              <div class="space-y-4">
+                <!-- Start date block (used for monthly and semi-monthly, and also for the consolidated monthly selection) -->
+                <div id="generalStartBlock" class="hidden">
+                  <div class="mb-1 text-sm text-gray-600">Pick a starting date</div>
+                  <input id="recurringStart" type="date" class="input" />
+                  <p id="startDateError" class="mt-2 hidden text-sm text-red-600">Start date must be in the future</p>
+                  <div id="monthlySummary" class="hidden text-[16px] font-medium text-sky-700 mt-2"></div>
+                </div>
+                <!-- Weekly 2 and custom weekly options -->
+                <div id="weeklyOptions" class="space-y-2 hidden">
+                  <div id="customWeeklyWrap" class="hidden">
+                    <div class="text-sm text-gray-600">Repeat every</div>
+                    <select id="customWeeklyInterval" class="input w-28">
+                      <option value="1">1 week</option>
+                      <option value="2">2 weeks</option>
+                      <option value="3">3 weeks</option>
+                      <option value="4">4 weeks</option>
+                      <option value="5">5 weeks</option>
+                      <option value="6">6 weeks</option>
+                      <option value="7">7 weeks</option>
+                      <option value="8">8 weeks</option>
+                    </select>
+                  </div>
+                  <div class="text-sm text-gray-600">Pick a starting date</div>
+                  <input id="weeklyStart" type="date" class="input" />
+                  <div id="weeklySummary" class="hidden text-[16px] font-medium text-sky-700"></div>
+                </div>
+                <div>
+                  <div class="mb-1 text-[14px] font-medium text-[#18181B]">When would you like this to end?</div>
+                  <select id="endSelect" class="input w-full">
+                    <option value="" selected disabled>Select an end option</option>
+                    <option value="none">No end date</option>
+                    <option value="untilMatch">Until my match runs out or my company program ends</option>
+                    <option value="onDate">On a date</option>
+                  </select>
+                  <div id="endHelp" class="mt-2 text-[14px] text-[#71717A]"></div>
+                  <div id="endDateWrap" class="mt-2 hidden">
+                    <input id="recurringEnd" type="date" class="input" />
+                  </div>
+                  <p id="endDateError" class="hidden text-sm text-red-600">End date must be after the start date</p>
+                </div>
               </div>
             </div>
-            <p id="amountError" class="mt-2 hidden text-sm text-red-600">Minimum is $5</p>
-          </div>
 
-          <div class="card p-6">
-            <h2 class="mb-4 text-lg font-semibold">Cadence</h2>
-            <div class="space-y-4">
-              <label class="radio-item">
-                <input type="radio" name="cadence" value="monthly" />
-                <span>Every month on</span>
-                <select id="monthlyDay" class="ml-2 input w-28">
-                  <!-- 1..31 options injected by JS -->
-                </select>
-                <span class="ml-2 text-sm text-gray-500">(clamps to last day if needed)</span>
-              </label>
-
-              <label class="radio-item items-start">
-                <div class="flex items-center">
-                  <input type="radio" name="cadence" value="weekly" />
-                  <span class="ml-2">Every</span>
-                  <select id="weeklyInterval" class="ml-2 input w-24">
-                    <!-- 1..8 injected by JS -->
-                  </select>
-                  <span class="ml-2">weeks starting</span>
-                  <input id="weeklyStart" type="date" class="ml-2 input" />
+            <div class="card p-6 text-center">
+              <div class="mb-2 inline-flex items-center gap-2 text-[14px] font-medium text-gray-800"><i class="ph-bold ph-arrows-clockwise text-[18px]"></i><span>My pledge</span></div>
+              <div class="flex flex-wrap justify-center gap-2" id="amountChips">
+                <button data-amount="5" class="chip">$5</button>
+                <button data-amount="10" class="chip">$10</button>
+                <button data-amount="50" class="chip">$50</button>
+                <button data-amount="100" class="chip">$100</button>
+                <button data-amount="500" class="chip">$500</button>
+                <div class="relative">
+                  <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                  <input id="customAmount" type="number" min="0" step="0.01" placeholder="0" class="input h-10 pl-6" />
                 </div>
-              </label>
+              </div>
+              <p id="amountError" class="mt-2 hidden text-sm text-red-600">Minimum is $5</p>
+              <div id="recurringMatchDisplay" class="mt-3 hidden text-sm font-medium text-sky-700 inline-flex items-center gap-2">
+                <i class="ph-bold ph-arrows-clockwise"></i>
+                <span id="recurringMatchDisplayText"></span>
+                <button id="recurringEditMatchBtn" class="ml-2 inline-flex items-center rounded border border-gray-300 px-2 py-1 text-xs"><i class="ph-bold ph-pencil-simple text-[16px]"></i></button>
+              </div>
+              <div id="recurringMatchInputGroup" class="mt-3 hidden">
+                <div class="mb-1 text-xs text-gray-600">Company match to request</div>
+                <div class="relative inline-block">
+                  <span class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                  <input id="recurringMatchInput" type="number" min="0" step="0.01" class="input h-10 w-40 pl-6 text-center" value="0.00" />
+                </div>
+              </div>
+            </div>
 
-              <label class="radio-item">
-                <input type="radio" name="cadence" value="semiMonthly" />
-                <span>Every 1st and 15th of the month</span>
-              </label>
+            
+
+            <div class="card p-6" id="recurringProgramCard" style="background:#F4F4F5">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <div class="flex h-10 w-10 items-center justify-center rounded-full bg-sky-700 text-white font-semibold">C</div>
+                  <div class="font-medium" id="programName">CBC Capital</div>
+                </div>
+                <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">1x match</span>
+              </div>
+              <div class="mt-2 text-[14px] font-semibold text-gray-800"><span id="programAvailableLabel">$450</span> match available</div>
+              <div class="mt-2 h-2 w-full rounded bg-gray-200 relative overflow-hidden">
+                <div class="h-2 rounded absolute left-0 top-0 z-[1] hidden" id="programProjectedBar" style="width:55%; background:#F59E0B"></div>
+                <div class="h-2 rounded absolute left-0 top-0 z-[2]" id="programUsedBar" style="width:55%; background:#0EA5E9"></div>
+              </div>
+              <div class="mt-1 text-[12px] text-[#71717A] space-y-1">
+                <div class="flex items-center justify-between">
+                  <span class="inline-flex items-center gap-2"><span class="inline-block h-3 w-3 rounded-full" style="background:#0EA5E9"></span><span>Match used • <span id="programUsedText">$550</span>/<span id="programCapText">$1,000</span></span></span>
+                  <span>Ends <span id="programExpiresText">12/31/25</span></span>
+                </div>
+                <div id="programProjectedRow" class="flex items-center justify-between hidden">
+                  <span class="inline-flex items-center gap-2"><span class="inline-block h-3 w-3 rounded-full" style="background:#F59E0B"></span><span>Match pledged with this recurring match • <span id="programProjectedText">$0</span>/<span id="programCapText2">$1,000</span></span></span>
+                </div>
+              </div>
+              <button class="mt-3 btn-outline text-sm w-full">View (1) additional program</button>
             </div>
           </div>
-
-          <!-- Body CTAs removed in favor of header actions -->
         </section>
 
         <!-- View: One-time Funding (pledge path) -->
         <section id="view-oneTimeFunding" data-view class="hidden">
           <div id="fundingContent" class="mx-auto max-w-[448px] space-y-6 mt-6">
             <div class="text-center">
-              <h3 class="text-[18px] font-semibold">How do you want to fund your <span id="fundingAmountLabel">$0.00</span> portion of this donation?</h3>
+              <h3 id="fundingTitle" class="text-[18px] font-semibold">How do you want to fund your <span id="fundingAmountLabel">$0.00</span> portion of this donation?</h3>
             </div>
 
             <div class="space-y-3">
@@ -383,11 +449,12 @@
 
             <div class="space-y-3">
               <div class="space-y-2 text-sm">
-                <div class="flex items-center justify-between"><span>Your donation</span><span id="fundingDonation">$0.00</span></div>
+                <div class="flex items-center justify-between"><span id="fundingDonationLabel">Your donation</span><span id="fundingDonation">$0.00</span></div>
                 <div class="flex items-center justify-between"><span class="text-[#71717A]">Transaction fee</span><span id="fundingFeeFixed" class="text-[#71717A]">$0.00</span></div>
                 <div id="fundingFeeCardRow" class="hidden flex items-center justify-between"><span class="text-[#71717A]">Stripe processing fee (required)</span><span id="fundingFeeCard" class="text-[#71717A]">$0.00</span></div>
-                <div class="flex items-center justify-between border-t pt-2 font-semibold text-[16px] mb-6"><span>Amount due from you</span><span id="fundingTotal">$0.00</span></div>
-                <button id="fundingContinueBtn" class="mt-11 inline-flex w-full items-center justify-center rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white"><span>Review and add a note</span><i class="ph-bold ph-arrow-right ml-2"></i></button>
+                <div class="flex items-center justify-between border-t pt-2 font-semibold text-[16px] mb-2"><span id="fundingDueLabel">Amount due from you</span><span id="fundingTotal">$0.00</span></div>
+                <div id="fundingCadenceText" class="hidden text-sm font-medium text-sky-700 mb-4"></div>
+                <button id="fundingContinueBtn" class="mt-4 inline-flex w-full items-center justify-center rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white"><span>Review and add a note</span><i class="ph-bold ph-arrow-right ml-2"></i></button>
               </div>
             </div>
           </div>
@@ -487,11 +554,12 @@
               <label class="mt-3 flex items-center gap-2 text-sm"><input id="pledgeAnonymous" type="checkbox" class="h-4 w-4 accent-sky-700" /><span>Make my donation anonymous</span></label>
             </div>
 
-            <div class="space-y-4">
+            <div class="space-y-2">
               <div class="flex items-center justify-between text-[16px] font-semibold text-sky-700">
-                <span>Amount due from you</span>
+                <span class="inline-flex items-center gap-2"><i id="pledgeDueIcon" class="ph-bold ph-arrows-clockwise hidden"></i><span>Amount due from you</span></span>
                 <span id="pledgeDue">$0.00</span>
               </div>
+              <div id="pledgeCadenceText" class="hidden text-sm font-medium text-sky-700"></div>
             </div>
 
             <div class="flex items-center justify-between text-sm font-semibold">
@@ -525,30 +593,32 @@
       <!-- Right summary column -->
       <aside id="rightAside" class="hidden">
         <div class="card hidden p-6 overflow-auto rounded-none border-l border-border" id="summaryCard">
-          <h3 class="mb-4 text-[20px] font-semibold">You're sending a total of <span id="sumHeadlineTotal">$0.00</span> to Team Rubicon</h3>
+          <h3 class="mb-4 text-[20px] font-semibold"><span id="sumHeadlinePrefix">You're sending a total of</span> <span id="sumHeadlineTotal">$0.00</span> <span id="sumHeadlineSuffix">to Team Rubicon</span></h3>
           <div class="space-y-3 text-sm mb-6" id="creditsItemization">
             <!-- credit rows injected here when applied -->
           </div>
           <div class="space-y-3 text-sm">
-            <div class="flex items-center justify-between text-sky-700 font-semibold"><span>Amount due from you</span><span id="sumDue">$0.00</span></div>
-            <div class="flex items-center justify-between"><span>Covered by your company</span><span id="sumCovered">$0.00</span></div>
-            <div class="flex items-center justify-between border-t pt-2 font-semibold"><span>Donation total</span><span id="sumTotal">$0.00</span></div>
+            <div class="flex items-center justify-between text-sky-700 font-semibold"><span class="inline-flex items-center gap-2"><i id="sumIconDue" class="ph-bold ph-arrows-clockwise hidden"></i><span>Amount due from you</span></span><span id="sumDue">$0.00</span></div>
+            <div class="flex items-center justify-between"><span class="inline-flex items-center gap-2"><i id="sumIconCovered" class="ph-bold ph-arrows-clockwise hidden"></i><span>Covered by your company</span></span><span id="sumCovered">$0.00</span></div>
+            <div class="flex items-center justify-between border-t pt-2 font-semibold"><span class="inline-flex items-center gap-2"><i id="sumIconTotal" class="ph-bold ph-arrows-clockwise hidden"></i><span>Donation total</span></span><span id="sumTotal">$0.00</span></div>
           </div>
-          <button id="checkoutBtnSide" class="mt-4 inline-flex w-full items-center justify-center rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-70"><span>Go to checkout</span><i class="ph-bold ph-arrow-right ml-2"></i></button>
+          <div id="sideCadenceText" class="mt-3 hidden text-sm font-medium text-sky-700"></div>
+          <button id="checkoutBtnSide" class="mt-3 inline-flex w-full items-center justify-center rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-70"><span>Go to checkout</span><i class="ph-bold ph-arrow-right ml-2"></i></button>
         </div>
       </aside>
     </main>
 
     <!-- Success Modal -->
-    <section id="donateSuccess" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/60 p-4">
+        <section id="donateSuccess" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/60 p-4 pointer-events-none">
       <canvas id="donateConfetti" class="pointer-events-none absolute inset-0 z-[59]"></canvas>
-      <div class="relative z-[60] card w-full max-w-md overflow-hidden p-8">
+      <div class="relative z-[60] card w-full max-w-md overflow-hidden p-8 pointer-events-auto">
         <div class="text-lg font-semibold mb-4 hidden" id="donateCharged">You were charged $0.00</div>
-        <div class="text-[20px] font-semibold leading-snug mb-6">Thank you! Your total donation of <span id="donateImpact">$0.00</span> is on its way to</div>
+        <div id="donateThanks" class="text-[20px] font-semibold leading-snug mb-6">Thank you! Your total donation of <span id="donateImpact">$0.00</span> is on its way to</div>
         <div class="flex items-center gap-3 mb-8">
           <span class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-red-600 text-white font-semibold">T</span>
           <span class="text-[16px] font-semibold">Team Rubicon</span>
         </div>
+        <div id="donateRecurringNote" class="hidden text-sm text-gray-600 mb-3">You can remove reocurring donations from the Groundswell homepage</div>
         <button id="donateCloseBtn" class="inline-flex w-full items-center justify-center rounded-md bg-zinc-900 px-3 py-3 text-sm font-medium text-white">Close</button>
       </div>
     </section>

@@ -1,4 +1,18 @@
 (function () {
+    function parseLocalDate(iso) {
+        if (!iso || typeof iso !== 'string') return null;
+        const parts = iso.split('-');
+        if (parts.length !== 3) return null;
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        const d = parseInt(parts[2], 10);
+        if (isNaN(y) || isNaN(m) || isNaN(d)) return null;
+        return new Date(y, m - 1, d);
+    }
+    function todayLocal() {
+        const t = new Date();
+        return new Date(t.getFullYear(), t.getMonth(), t.getDate());
+    }
     const views = {
         start: document.getElementById('view-start'),
         oneTime: document.getElementById('view-oneTime'),
@@ -10,6 +24,7 @@
     };
 
     const header = document.getElementById('siteHeader');
+    const headerTitle = document.getElementById('headerTitle');
     const progress = {
         container: document.getElementById('progressContainer'),
         fill: document.getElementById('progressFill'),
@@ -67,9 +82,16 @@
 		otAmountError: document.getElementById('otAmountError'),
 		creditRows: () => Array.from(document.querySelectorAll('#creditsList .credit-row')),
 		userCoversFee: document.getElementById('userCoversFee'),
-		monthlyDay: document.getElementById('monthlyDay'),
+        monthlyDay: document.getElementById('monthlyDay'),
+        monthlyDayDate: document.getElementById('monthlyDayDate'),
 		weeklyInterval: document.getElementById('weeklyInterval'),
 		weeklyStart: document.getElementById('weeklyStart'),
+        recurringStart: document.getElementById('recurringStart'),
+        recurringEnd: document.getElementById('recurringEnd'),
+        recurrencePreset: document.getElementById('recurrencePreset'),
+        customWeeklyInterval: document.getElementById('customWeeklyInterval'),
+        endSelect: document.getElementById('endSelect'),
+        endHelp: document.getElementById('endHelp'),
 	};
 
 	const confirmEls = {
@@ -126,11 +148,13 @@
     // Prepare confetti canvas (initialize when modal opens so size isn't 0x0)
     const confettiCanvas = document.getElementById('donateConfetti');
     let fireConfetti = null;
+    let isSuccessOpen = false;
     function ensureConfettiReady() {
         if (!window.confetti || !confettiCanvas) return null;
         const overlayEl = document.getElementById('donateSuccess');
-        const w = overlayEl ? overlayEl.clientWidth : window.innerWidth;
-        const h = overlayEl ? overlayEl.clientHeight : window.innerHeight;
+        let w = overlayEl ? overlayEl.clientWidth : 0;
+        let h = overlayEl ? overlayEl.clientHeight : 0;
+        if (!w || !h) { w = window.innerWidth; h = window.innerHeight; }
         confettiCanvas.width = w;
         confettiCanvas.height = h;
         fireConfetti = window.confetti.create(confettiCanvas, { resize: false, useWorker: true });
@@ -148,6 +172,9 @@
 		monthlyDay: null,
 		weeklyInterval: 1,
 		weeklyStart: null,
+        recurringStart: null,
+        endType: 'none', // 'none' | 'untilMatch' | 'onDate'
+        recurringEnd: null,
 		employerCoversFee: false,
         matchEdited: false,
         note: '',
@@ -155,20 +182,51 @@
         fundingMethod: 'bankSaved', // 'bankSaved' | 'bankAdd' | 'gsa' | 'card'
         gsaBalance: 100,
         cardInfoAdded: false,
+        program: {
+            name: 'CBC Capital',
+            capTotal: 1000,
+            usedToDate: 550,
+            multiplier: 1,
+            expiresAt: '2025-12-31',
+        },
+        matchPerInstallment: 0,
 	};
     let isChooseOpen = false;
 
     function updateHeaderForView() {
         if (!header) return;
-        // Show back button only on one-time credits confirmation
+        // Title
+        if (headerTitle) {
+            let title = 'Make a one-time donation';
+            if (state.view === 'recurring') title = 'Set up a recurring donation';
+            if (state.view === 'oneTime' || state.view === 'oneTimeConfirm') title = 'Make a one-time donation';
+            if (state.view === 'oneTimeFunding' && state.donationType === 'recurring') title = 'Set up a recurring donation';
+            if (state.view === 'oneTimePledgeConfirm' && state.donationType === 'recurring') title = 'Set up a recurring donation';
+            if (state.view === 'confirmation' && state.donationType === 'recurring') title = 'Set up a recurring donation';
+            headerTitle.textContent = title;
+        }
+        // Back button logic
         if (buttons.backToDonation) {
-            buttons.backToDonation.classList.toggle('hidden', !(state.view === 'oneTimeConfirm' || state.view === 'oneTimeFunding'));
+            const showBack = (state.view === 'oneTimeConfirm' || state.view === 'oneTimeFunding' || state.view === 'oneTimePledgeConfirm');
+            buttons.backToDonation.classList.toggle('hidden', !showBack);
+            if (showBack) {
+                let label = 'Back';
+                if (state.view === 'oneTimeConfirm') label = 'Back to donation';
+                else if (state.view === 'oneTimePledgeConfirm') label = 'Back to funding source';
+                else if (state.view === 'oneTimeFunding') label = (state.donationType === 'recurring' ? 'Back to pledge' : 'Back to donation');
+                buttons.backToDonation.textContent = label;
+            }
         }
         // Header checkout visibility/label
         if (buttons.checkout) {
-            // Show header checkout only on funding view; hide elsewhere
-            const shouldShow = state.view === 'oneTimeFunding';
+            // Hide header checkout on all screens per updated UX
+            const shouldShow = false;
             buttons.checkout.classList.toggle('hidden', !shouldShow);
+            // Label per view
+            buttons.checkout.querySelector && (() => {
+                const span = buttons.checkout.querySelector('span');
+                if (span) span.textContent = 'Review and confirm';
+            })();
             buttons.checkout.disabled = false;
         }
     }
@@ -185,6 +243,11 @@
         if (rightAside) {
             if (view === 'start') {
                 rightAside.classList.add('hidden');
+                // defensively ensure any fixed overlays are closed so they don't block clicks
+                const choose = document.getElementById('view-choose');
+                if (choose) { choose.classList.add('hidden'); choose.classList.remove('flex'); isChooseOpen = false; }
+                const success = document.getElementById('donateSuccess');
+                if (success) { success.classList.add('hidden'); success.classList.remove('flex'); }
             } else if (view === 'oneTime') {
                 rightAside.classList.remove('hidden');
             } else if (view === 'oneTimeConfirm' || view === 'oneTimeFunding') {
@@ -252,7 +315,7 @@
 
     function updateProgressBar() {
         if (!progress.container) return;
-        const shouldShow = (state.view === 'oneTime' || state.view === 'oneTimeConfirm' || state.view === 'oneTimeFunding') && !isChooseOpen;
+        const shouldShow = (state.view === 'oneTime' || state.view === 'oneTimeConfirm' || state.view === 'oneTimeFunding' || state.view === 'recurring' || (state.view === 'confirmation' && state.donationType === 'recurring')) && !isChooseOpen;
         progress.container.classList.toggle('hidden', !shouldShow);
         if (!shouldShow) return;
         // Credits-confirmation screen is always complete
@@ -260,6 +323,7 @@
             setProgress(100);
             return;
         }
+        if (state.view === 'recurring') { setProgress(50); return; }
         if (state.view === 'oneTimeFunding') {
             setProgress(75);
             return;
@@ -271,6 +335,11 @@
 	function toDollar(n) {
 		return `$${(n || 0).toFixed(2)}`;
 	}
+
+    function toDollarWholeCeil(n) {
+        const v = Math.ceil(n || 0);
+        return `$${v.toLocaleString()}`;
+    }
 
 	function feeFor(amount) {
 		if (state.view === 'recurring') {
@@ -287,7 +356,7 @@
         updateProgressBar();
         // Determine visibility of summary
         const hasSelection = (state.view === 'oneTime' && ((state.otCreditsApplied || 0) > 0 || (state.amount || 0) > 0))
-            || (state.view === 'recurring');
+            || (state.view === 'recurring' && (state.amount || 0) > 0);
         const showPanel = (state.view !== 'oneTimeFunding') && (hasSelection || state.view === 'confirmation');
         if (showPanel) {
             rightAside && rightAside.classList.remove('hidden');
@@ -344,21 +413,28 @@
 
         const pledge = state.amount || 0;
         const credits = state.view === 'oneTime' ? (state.otCreditsApplied || 0) : 0;
-        const matchInputEl = document.getElementById('matchAmountInput');
-        let userMatchOverrideRaw = matchInputEl ? parseFloat(matchInputEl.value) : NaN;
-        // If user has not edited match or typed 0/NaN, mirror pledge by default
-        if (!state.matchEdited) {
-            userMatchOverrideRaw = pledge;
-            if (matchInputEl) matchInputEl.value = String(pledge.toFixed(2));
+        let matchFromCompany = 0;
+        const isRecurring = state.view === 'recurring' || (state.view === 'confirmation' && state.donationType === 'recurring');
+        if (isRecurring) {
+            const m = typeof state.matchPerInstallment === 'number' ? state.matchPerInstallment : pledge;
+            matchFromCompany = Math.max(0, Math.min(m, pledge));
+        } else {
+            const matchInputEl = document.getElementById('matchAmountInput');
+            let userMatchOverrideRaw = matchInputEl ? parseFloat(matchInputEl.value) : NaN;
+            // If user has not edited match or typed 0/NaN, mirror pledge by default
+            if (!state.matchEdited) {
+                userMatchOverrideRaw = pledge;
+                if (matchInputEl) matchInputEl.value = String(pledge.toFixed(2));
+            }
+            const defaultMatch = pledge > 0 ? pledge : 0; // 1x by default
+            // If user entered a value higher than pledge, clamp back to 1x
+            matchFromCompany = isNaN(userMatchOverrideRaw)
+                ? defaultMatch
+                : Math.max(0, Math.min(userMatchOverrideRaw, defaultMatch));
         }
-        const defaultMatch = pledge > 0 ? pledge : 0; // 1x by default
-        // If user entered a value higher than pledge, clamp back to 1x
-        const matchFromCompany = isNaN(userMatchOverrideRaw)
-            ? defaultMatch
-            : Math.max(0, Math.min(userMatchOverrideRaw, defaultMatch));
         const donationTotal = pledge + credits + matchFromCompany; // total donated to org includes company match
         const feeBase = Math.max(0, pledge); // fees apply only to user's pledge
-        const fee = feeFor(feeBase);
+        const fee = isRecurring ? (state.fundingMethod === 'card' ? feeBase * 0.029 : 0) : feeFor(feeBase);
         const total = pledge + fee; // amount due from user
         if (summary.headlineTotal) summary.headlineTotal.textContent = toDollar(donationTotal);
         if (summary.covered) summary.covered.textContent = toDollar(credits + matchFromCompany);
@@ -375,6 +451,51 @@
             } else {
                 matchDisplay.classList.add('hidden');
                 matchInputGroup.classList.add('hidden');
+            }
+        }
+
+        // Update sidebar cadence text when recurring
+        const sideCadence = document.getElementById('sideCadenceText');
+        if (sideCadence) {
+            if (isRecurring && state.cadence) {
+                let text = '';
+                if (state.cadence === 'monthly') {
+                    const ord = (n)=>{const s=['th','st','nd','rd'], v=n%100; return n+(s[(v-20)%10]||s[v]||s[0]);};
+                    text = `Repeats monthly on the ${ord(state.monthlyDay || 1)}`;
+                }
+                if (state.cadence === 'weekly') {
+                    const d = state.weeklyStart ? parseLocalDate(state.weeklyStart) : null;
+                    const weekdays = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+                    const weekday = d ? weekdays[d.getDay()] + 's' : 'week';
+                    text = `Repeats every ${state.weeklyInterval || 1} week${(state.weeklyInterval||1)===1?'':'s'} on ${weekday}`;
+                }
+                if (state.cadence === 'semiMonthly') {
+                    text = 'Repeats monthly on the 1st and 15th';
+                }
+                const start = state.recurringStart ? parseLocalDate(state.recurringStart) : null;
+                if (start) {
+                    const mm = String(start.getMonth()+1).padStart(2,'0');
+                    const dd = String(start.getDate()).padStart(2,'0');
+                    const yy = String(start.getFullYear()).toString().slice(-2);
+                    text += `, starting ${mm}/${dd}/${yy}`;
+                }
+                sideCadence.textContent = text;
+                sideCadence.classList.remove('hidden');
+                // Ensure icons show only for recurring
+                const i1 = document.getElementById('sumIconDue');
+                const i2 = document.getElementById('sumIconCovered');
+                const i3 = document.getElementById('sumIconTotal');
+                i1 && i1.classList.remove('hidden');
+                i2 && i2.classList.remove('hidden');
+                i3 && i3.classList.remove('hidden');
+            } else {
+                sideCadence.classList.add('hidden');
+                const i1 = document.getElementById('sumIconDue');
+                const i2 = document.getElementById('sumIconCovered');
+                const i3 = document.getElementById('sumIconTotal');
+                i1 && i1.classList.add('hidden');
+                i2 && i2.classList.add('hidden');
+                i3 && i3.classList.add('hidden');
             }
         }
 
@@ -426,7 +547,7 @@
             });
 
             // Show connected pledge/match pair only when a pledge is entered (> 0)
-            const shouldShowPledgeGroup = state.view === 'oneTime' && pledge > 0;
+            const shouldShowPledgeGroup = (state.view === 'oneTime' || state.view === 'recurring') && pledge > 0;
             if (shouldShowPledgeGroup) {
                 // ensure 12px gap below the last credit when pledge/match is present
                 if (lastCreditEl) lastCreditEl.classList.add('mb-3');
@@ -445,7 +566,7 @@
                     row.appendChild(left); row.appendChild(right);
                     return row;
                 };
-                group.appendChild(addRow('My donation', 'This is your portion of this donation', pledge, 'border-b border-gray-200'));
+                group.appendChild(addRow('My pledge', 'This is your portion of this donation', pledge, 'border-b border-gray-200'));
                 group.appendChild(addRow('CBC Capital match', 'Your company is matching your pledge', matchFromCompany));
                 summary.itemization.appendChild(group);
                 itemCount += 2;
@@ -493,7 +614,14 @@
 
 	function canProceedRecurring() {
 		if (!(state.amount >= 5)) return false;
-		if (state.cadence === 'monthly') return !!state.monthlyDay;
+		if (!state.cadence) return false;
+		if (state.cadence === 'monthly') {
+			if (!state.monthlyDay && state.recurringStart) {
+				const d = parseLocalDate(state.recurringStart);
+				if (d) state.monthlyDay = d.getDate();
+			}
+			return !!state.monthlyDay;
+		}
 		if (state.cadence === 'weekly') return !!state.weeklyInterval && !!state.weeklyStart;
 		if (state.cadence === 'semiMonthly') return true;
 		return false;
@@ -519,6 +647,13 @@
         if (selected && selected.value) state.fundingMethod = selected.value;
         const pledge = state.amount || 0;
         if (fundingEls.amountLabel) fundingEls.amountLabel.textContent = toDollar(pledge);
+        // Recurring copy tweaks
+        const titleEl = document.getElementById('fundingTitle');
+        if (titleEl && state.donationType === 'recurring') {
+            titleEl.textContent = `How do you want to fund your ${toDollar(pledge)} portion of the recurring donation?`;
+        }
+        const donationLabel = document.getElementById('fundingDonationLabel');
+        if (donationLabel && state.donationType === 'recurring') donationLabel.textContent = 'Your pledge';
         if (fundingEls.gsaBalanceLabel) fundingEls.gsaBalanceLabel.textContent = toDollar(state.gsaBalance);
         const coverFee = !!(fundingEls.coverFee && fundingEls.coverFee.checked);
         // Card processing fee cannot be waived; only the fixed fee is waived
@@ -558,21 +693,53 @@
         // Ensure header is visible on funding screen
         header && header.classList.remove('hidden');
         updateProgressBar();
+
+        // Cadence text on funding screen (blue)
+        const fct = document.getElementById('fundingCadenceText');
+        if (fct && state.donationType === 'recurring') {
+            let text = '';
+            if (state.cadence === 'monthly') {
+                const ord = (n)=>{const s=['th','st','nd','rd'], v=n%100; return n+(s[(v-20)%10]||s[v]||s[0]);};
+                text = `Repeats monthly on the ${ord(state.monthlyDay || 1)}`;
+            } else if (state.cadence === 'weekly') {
+                const d = state.weeklyStart ? parseLocalDate(state.weeklyStart) : null;
+                const weekdays = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+                const weekday = d ? weekdays[d.getDay()] + 's' : 'week';
+                text = `Repeats every ${state.weeklyInterval || 1} week${(state.weeklyInterval||1)===1?'':'s'} on ${weekday}`;
+            } else if (state.cadence === 'semiMonthly') {
+                text = 'Repeats monthly on the 1st and 15th';
+            }
+            const start = state.recurringStart ? parseLocalDate(state.recurringStart) : null;
+            if (start) {
+                const mm = String(start.getMonth()+1).padStart(2,'0');
+                const dd = String(start.getDate()).padStart(2,'0');
+                const yy = String(start.getFullYear()).toString().slice(-2);
+                text += `, starting ${mm}/${dd}/${yy}`;
+            }
+            fct.textContent = text;
+            fct.classList.remove('hidden');
+        }
+        const dueLabel = document.getElementById('fundingDueLabel');
+        if (dueLabel && state.donationType === 'recurring') dueLabel.textContent = 'Amount due each installment';
     }
 
 	// Inject options
 	(function initOptions() {
-		for (let d = 1; d <= 31; d++) {
-			const opt = document.createElement('option');
-			opt.value = String(d);
-			opt.textContent = String(d);
-			inputs.monthlyDay.appendChild(opt);
+		if (inputs.monthlyDay) {
+			for (let d = 1; d <= 31; d++) {
+				const opt = document.createElement('option');
+				opt.value = String(d);
+				opt.textContent = String(d);
+				inputs.monthlyDay.appendChild(opt);
+			}
 		}
-		for (let w = 1; w <= 8; w++) {
-			const opt = document.createElement('option');
-			opt.value = String(w);
-			opt.textContent = String(w);
-			inputs.weeklyInterval.appendChild(opt);
+		if (inputs.weeklyInterval) {
+			for (let w = 1; w <= 8; w++) {
+				const opt = document.createElement('option');
+				opt.value = String(w);
+				opt.textContent = String(w);
+				inputs.weeklyInterval.appendChild(opt);
+			}
 		}
 	})();
 
@@ -584,17 +751,11 @@
     // Header/side actions
     function triggerCheckout() {
         if (state.view === 'recurring' && canProceedRecurring()) {
-            // mimic continue
-            confirmEls.amount.textContent = toDollar(state.amount);
-            confirmEls.fee.textContent = toDollar(feeFor(state.amount));
-            confirmEls.total.textContent = toDollar(state.amount + feeFor(state.amount));
-            let cadenceText = '';
-            if (state.cadence === 'monthly') cadenceText = `Monthly on day ${state.monthlyDay}`;
-            if (state.cadence === 'weekly') cadenceText = `Every ${state.weeklyInterval} week(s) starting ${state.weeklyStart}`;
-            if (state.cadence === 'semiMonthly') cadenceText = '1st and 15th each month';
-            confirmEls.cadence.textContent = cadenceText;
-            show('confirmation');
-            recomputeSummary();
+            // Recurring now goes to funding selection first (same as one-time)
+            show('oneTimeFunding');
+            header && header.classList.remove('hidden');
+            renderFunding();
+            updateProgressBar();
             return;
         }
         if (state.view === 'oneTimeFunding') {
@@ -644,7 +805,7 @@
     function handleSelectCard(cardEl) {
         if (!cardEl || !chooseContainer || chooseContainer.classList.contains('hidden')) return;
         state.donationType = cardEl.getAttribute('data-type');
-        if (buttons.chooseContinue) buttons.chooseContinue.disabled = false;
+        if (buttons.chooseContinue) { buttons.chooseContinue.disabled = false; buttons.chooseContinue.removeAttribute('disabled'); }
         Array.from(document.querySelectorAll('#view-choose .select-card')).forEach((c) => c.classList.remove('selected'));
         cardEl.classList.add('selected');
     }
@@ -671,11 +832,11 @@
         cardEl && cardEl.addEventListener('click', (e) => e.stopPropagation());
     }
 
-    buttons.chooseContinue.addEventListener('click', () => {
+    buttons.chooseContinue && buttons.chooseContinue.addEventListener('click', () => {
         const selected = state.donationType; // capture before modal clears state
         closeChooseModal();
         if (selected === 'oneTime') { show('oneTime'); toggleCreditsUI(); }
-        if (selected === 'recurring') show('recurring');
+        if (selected === 'recurring') { state.donationType = 'recurring'; initRecurringDefaults(); show('recurring'); }
         recomputeSummary();
     });
 
@@ -686,8 +847,38 @@
         if (card) card.classList.toggle('hidden', !state.hasCredits);
     }
 
-    // Header back to donation
+    // Header back button behavior (context-aware)
     buttons.backToDonation && buttons.backToDonation.addEventListener('click', () => {
+        // From funding screen
+        if (state.view === 'oneTimeFunding') {
+            if (state.donationType === 'recurring') {
+                show('recurring');
+                recomputeSummary();
+                updateProgressBar();
+                return;
+            } else {
+                show('oneTime');
+                recomputeSummary();
+                updateProgressBar();
+                return;
+            }
+        }
+        // From pledge confirmation (recurring path) → back to funding source
+        if (state.view === 'oneTimePledgeConfirm') {
+            show('oneTimeFunding');
+            header && header.classList.remove('hidden');
+            renderFunding();
+            updateProgressBar();
+            return;
+        }
+        // From credits-only confirmation → back to donation selection
+        if (state.view === 'oneTimeConfirm') {
+            show('oneTime');
+            recomputeSummary();
+            updateProgressBar();
+            return;
+        }
+        // Fallback
         show('oneTime');
         recomputeSummary();
         updateProgressBar();
@@ -766,7 +957,7 @@
                 row.appendChild(left); row.appendChild(right);
                 pledgeConfirmEls.list.appendChild(row);
             }
-            pledgeConfirmEls.list.appendChild(addRow('My donation', pledge));
+            pledgeConfirmEls.list.appendChild(addRow('My pledge', pledge));
             total += pledge + matchAmt; txn += 2;
         }
         if (pledgeConfirmEls.total) pledgeConfirmEls.total.textContent = toDollar(total);
@@ -787,11 +978,47 @@
         const fees = computeFundingFees(pledge, state.fundingMethod, coverFixed, includeCardPct);
         const due = pledge + fees.dueFee;
         if (pledgeConfirmEls.due) pledgeConfirmEls.due.textContent = toDollar(due);
-        if (pledgeConfirmEls.title) pledgeConfirmEls.title.textContent = `Let's review your ${toDollar(total)} donation to Team Rubicon`;
-        if (pledgeConfirmEls.donateBtn) pledgeConfirmEls.donateBtn.querySelector('span').textContent = `Donate and pay ${toDollar(due)}`;
+        const isRecurringConfirm = state.donationType === 'recurring';
+        if (pledgeConfirmEls.title) pledgeConfirmEls.title.textContent = `Let's review your ${toDollar(total)} ${isRecurringConfirm ? 'recurring ' : ''}donation to Team Rubicon`;
+        if (pledgeConfirmEls.donateBtn) {
+            const span = pledgeConfirmEls.donateBtn.querySelector('span');
+            if (span) span.textContent = (state.donationType === 'recurring') ? 'Donate and schedule payments' : `Donate and pay ${toDollar(due)}`;
+        }
         // Note/anon defaults from state
         if (pledgeConfirmEls.note) pledgeConfirmEls.note.value = state.note || '';
         if (pledgeConfirmEls.anonymous) pledgeConfirmEls.anonymous.checked = !!state.anonymous;
+        // Blue cadence copy above donate button
+        const cadEl = document.getElementById('pledgeCadenceText');
+        const pledgeDueIcon = document.getElementById('pledgeDueIcon');
+        if (cadEl) {
+            if (isRecurringConfirm) {
+                let text = '';
+                if (state.cadence === 'monthly') {
+                    const ord = (n)=>{const s=['th','st','nd','rd'], v=n%100; return n+(s[(v-20)%10]||s[v]||s[0]);};
+                    text = `Repeats monthly on the ${ord(state.monthlyDay || 1)}`;
+                } else if (state.cadence === 'weekly') {
+                    const d = state.weeklyStart ? parseLocalDate(state.weeklyStart) : null;
+                    const weekdays = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+                    const weekday = d ? weekdays[d.getDay()] + 's' : 'week';
+                    text = `Repeats every ${state.weeklyInterval || 1} week${(state.weeklyInterval||1)===1?'':'s'} on ${weekday}`;
+                } else if (state.cadence === 'semiMonthly') {
+                    text = 'Repeats monthly on the 1st and 15th';
+                }
+                const start = state.recurringStart ? parseLocalDate(state.recurringStart) : null;
+                if (start) {
+                    const mm = String(start.getMonth()+1).padStart(2,'0');
+                    const dd = String(start.getDate()).padStart(2,'0');
+                    const yy = String(start.getFullYear()).toString().slice(-2);
+                    text += `, starting ${mm}/${dd}/${yy}`;
+                }
+                cadEl.textContent = text;
+                cadEl.classList.remove('hidden');
+                pledgeDueIcon && pledgeDueIcon.classList.remove('hidden');
+            } else {
+                cadEl.classList.add('hidden');
+                pledgeDueIcon && pledgeDueIcon.classList.add('hidden');
+            }
+        }
     }
 
     pledgeConfirmEls.donateBtn && pledgeConfirmEls.donateBtn.addEventListener('click', () => {
@@ -867,13 +1094,23 @@
 		inputs.amountError.classList.toggle('hidden', val >= 5);
 		Array.from(inputs.amountChips.querySelectorAll('.chip')).forEach((el) => el.classList.remove('active'));
 		btn.classList.add('active');
-		// Always present match input; mirror pledge at 1x when changed
-        const matchInputEl = document.getElementById('matchAmountInput');
-        if (matchInputEl) {
-            matchInputEl.value = String(state.amount.toFixed(2));
-            state.matchEdited = false;
-        }
+		// Mirror pledge at 1x for current flow
+		if (state.view === 'recurring' || state.donationType === 'recurring') {
+			const rm = document.getElementById('recurringMatchInput');
+			if (rm) rm.value = String(state.amount.toFixed(2));
+			state.matchPerInstallment = state.amount;
+			state.matchEdited = false;
+			updateRecurringMatchUi();
+		} else {
+			const matchInputEl = document.getElementById('matchAmountInput');
+			if (matchInputEl) {
+				matchInputEl.value = String(state.amount.toFixed(2));
+				state.matchEdited = false;
+			}
+		}
 		recomputeSummary();
+		projectAndRenderProgram();
+		validateRecurring();
 	});
 
 	inputs.customAmount.addEventListener('input', () => {
@@ -881,7 +1118,17 @@
 		state.amount = isNaN(val) ? 0 : val;
 		inputs.amountError.classList.toggle('hidden', state.amount >= 5);
 		Array.from(inputs.amountChips.querySelectorAll('.chip')).forEach((el) => el.classList.remove('active'));
+		if (state.view === 'recurring' || state.donationType === 'recurring') {
+			const rm = document.getElementById('recurringMatchInput');
+			const mirrored = state.amount > 0 ? state.amount : 0;
+			if (rm) rm.value = String(mirrored.toFixed(2));
+			state.matchPerInstallment = mirrored;
+			state.matchEdited = false;
+			updateRecurringMatchUi();
+		}
 		recomputeSummary();
+		projectAndRenderProgram();
+		validateRecurring();
 	});
 
 	// One-time amount
@@ -993,6 +1240,7 @@ inputs.userCoversFee && inputs.userCoversFee.addEventListener('change', () => {
 
     // Donate submit → show success modal with total impact
     function openSuccessModal() {
+        if (isSuccessOpen) return;
         const inPledgeConfirm = views.oneTimePledgeConfirm && !views.oneTimePledgeConfirm.classList.contains('hidden');
         const impactText = inPledgeConfirm
             ? (pledgeConfirmEls.total ? pledgeConfirmEls.total.textContent : toDollar(0))
@@ -1000,16 +1248,56 @@ inputs.userCoversFee && inputs.userCoversFee.addEventListener('change', () => {
         const amountDue = inPledgeConfirm
             ? (pledgeConfirmEls.due ? pledgeConfirmEls.due.textContent : toDollar(0))
             : toDollar(0);
-        // Show/hide charged line
+        // Show/hide charged line: show for one-time pledge, hide for credits-only and all recurring
+        const isRecurring = state.donationType === 'recurring';
         if (successEls.charged) {
-            if (amountDue === toDollar(0)) {
+            if (isRecurring) {
                 successEls.charged.classList.add('hidden');
             } else {
-                successEls.charged.textContent = `You were charged ${amountDue}`;
-                successEls.charged.classList.remove('hidden');
+                if (amountDue !== toDollar(0)) {
+                    successEls.charged.textContent = `You were charged ${amountDue}`;
+                    successEls.charged.classList.remove('hidden');
+                } else {
+                    successEls.charged.classList.add('hidden');
+                }
             }
         }
         if (successEls.impact && typeof impactText === 'string') successEls.impact.textContent = impactText;
+        // Recurring-specific copy
+        const thanksEl = document.getElementById('donateThanks');
+        const recurNote = document.getElementById('donateRecurringNote');
+        if (thanksEl) {
+            if (isRecurring) {
+                thanksEl.innerHTML = `Thank you! Your recurring donation has been scheduled for`;
+            } else {
+                thanksEl.innerHTML = `Thank you! Your total donation of <span id="donateImpact">${impactText}</span> is on its way to`;
+            }
+        }
+        if (recurNote) recurNote.classList.toggle('hidden', !isRecurring);
+        if (isRecurring && successEls.txnText) {
+            // Build "You will be charged $X every ..." line and place in charged slot
+            const fee = state.fundingMethod === 'card' ? state.amount * 0.029 : 0;
+            const perInstallment = toDollar(state.amount + fee);
+            let cadenceStr = '';
+            if (state.cadence === 'monthly') {
+                cadenceStr = 'month';
+            } else if (state.cadence === 'weekly') {
+                const d = state.weeklyStart ? parseLocalDate(state.weeklyStart) : null;
+                const weekdays = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+                const weekday = d ? weekdays[d.getDay()] + 's' : 'week';
+                cadenceStr = `${state.weeklyInterval || 1} week${(state.weeklyInterval||1)===1?'':'s'} on ${weekday}`;
+            } else if (state.cadence === 'semiMonthly') {
+                const start = state.recurringStart ? parseLocalDate(state.recurringStart) : null;
+                const when = start ? ` starting ${String(start.getMonth()+1).padStart(2,'0')}/${String(start.getDate()).padStart(2,'0')}/${String(start.getFullYear()).toString().slice(-2)}` : '';
+                successEls.txnText.textContent = `You will be charged ${perInstallment} every 1st and 15th${when}`;
+                successEls.txnText.classList.remove('text-gray-500');
+                return;
+            }
+            const start = state.recurringStart ? parseLocalDate(state.recurringStart) : null;
+            const when = start ? ` starting ${String(start.getMonth()+1).padStart(2,'0')}/${String(start.getDate()).padStart(2,'0')}/${String(start.getFullYear()).toString().slice(-2)}` : '';
+            successEls.txnText.textContent = `You will be charged ${perInstallment} every ${cadenceStr}${when}`;
+            successEls.txnText.classList.remove('text-gray-500');
+        }
         if (successEls.txnText) {
             const countText = inPledgeConfirm ? (pledgeConfirmEls.txn ? pledgeConfirmEls.txn.textContent : '1') : (reviewEls.txnCount ? reviewEls.txnCount.textContent : '1');
             const count = parseInt(countText || '1', 10) || 1;
@@ -1021,13 +1309,16 @@ inputs.userCoversFee && inputs.userCoversFee.addEventListener('change', () => {
             document.getElementById('siteHeader')?.classList.add('hidden');
             successEls.overlay.classList.remove('hidden');
             successEls.overlay.classList.add('flex');
+            isSuccessOpen = true;
         }
         // confetti burst (on our canvas behind the card)
-        const fc = ensureConfettiReady();
-        if (fc) {
-            fc({ particleCount: 140, spread: 70, origin: { x: 0.5, y: 0.15 } });
-            setTimeout(() => fc({ particleCount: 100, spread: 100, origin: { x: 0.5, y: 0.3 } }), 250);
-        }
+        // Fire after layout to ensure canvas has correct size (rAF twice for reliability)
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                const fcNow = ensureConfettiReady();
+                if (fcNow) fcNow({ particleCount: 160, spread: 80, origin: { x: 0.5, y: 0.2 } });
+            });
+        });
     }
     reviewEls.donateSubmit && reviewEls.donateSubmit.addEventListener('click', (e) => { e.preventDefault(); openSuccessModal(); });
     // Defensive: delegate in case the button is re-rendered
@@ -1043,6 +1334,7 @@ inputs.userCoversFee && inputs.userCoversFee.addEventListener('change', () => {
             successEls.overlay.classList.add('hidden');
             successEls.overlay.classList.remove('flex');
         }
+        isSuccessOpen = false;
         // Return to start screen with cleared state
         const mainEl = document.querySelector('main');
         if (mainEl) mainEl.classList.remove('hidden');
@@ -1067,14 +1359,14 @@ inputs.userCoversFee && inputs.userCoversFee.addEventListener('change', () => {
 		});
 	});
 
-	inputs.monthlyDay.addEventListener('change', () => {
-		state.monthlyDay = parseInt(inputs.monthlyDay.value, 10);
-		recomputeSummary();
-	});
-	inputs.weeklyInterval.addEventListener('change', () => {
-		state.weeklyInterval = parseInt(inputs.weeklyInterval.value, 10) || 1;
-		recomputeSummary();
-	});
+    inputs.monthlyDay && inputs.monthlyDay.addEventListener('change', () => {
+        state.monthlyDay = parseInt(inputs.monthlyDay.value, 10);
+        recomputeSummary();
+    });
+    inputs.weeklyInterval && inputs.weeklyInterval.addEventListener('change', () => {
+        state.weeklyInterval = parseInt(inputs.weeklyInterval.value, 10) || 1;
+        recomputeSummary();
+    });
 	inputs.weeklyStart.addEventListener('change', () => {
 		state.weeklyStart = inputs.weeklyStart.value || null;
 		recomputeSummary();
@@ -1085,18 +1377,12 @@ summary.employerCoversFee && summary.employerCoversFee.addEventListener('change'
 });
 
     buttons.recurringContinue && buttons.recurringContinue.addEventListener('click', () => {
-		// Populate confirmation
-		confirmEls.amount.textContent = toDollar(state.amount);
-		confirmEls.fee.textContent = toDollar(feeFor(state.amount));
-		confirmEls.total.textContent = toDollar(state.amount + feeFor(state.amount));
-		let cadenceText = '';
-		if (state.cadence === 'monthly') cadenceText = `Monthly on day ${state.monthlyDay}`;
-		if (state.cadence === 'weekly') cadenceText = `Every ${state.weeklyInterval} week(s) starting ${state.weeklyStart}`;
-		if (state.cadence === 'semiMonthly') cadenceText = '1st and 15th each month';
-		confirmEls.cadence.textContent = cadenceText;
-		show('confirmation');
-		recomputeSummary();
-	});
+        // Route to funding selection for recurring
+        show('oneTimeFunding');
+        header && header.classList.remove('hidden');
+        renderFunding();
+        updateProgressBar();
+    });
 
     buttons.oneTimeContinue && buttons.oneTimeContinue.addEventListener('click', () => {
 		confirmEls.amount.textContent = toDollar(state.amount);
@@ -1123,6 +1409,386 @@ summary.employerCoversFee && summary.employerCoversFee.addEventListener('change'
     updateProgressBar();
     window.addEventListener('resize', positionLeftMatchCard);
     window.addEventListener('scroll', positionLeftMatchCard, { passive: true });
+
+    // Recurring helpers
+    function initRecurringDefaults() {
+        // default start date is tomorrow
+        const d = new Date(); d.setDate(d.getDate() + 1);
+        const iso = d.toISOString().slice(0,10);
+        state.recurringStart = iso;
+        inputs.recurringStart && (inputs.recurringStart.value = iso);
+        // no default selection per spec; keep UI hidden until user selects a preset
+        const preset = document.getElementById('recurrencePreset');
+        preset && (preset.value = '');
+        toggleRecurrenceUi('');
+        // match default mirrors pledge when amount is set via chips/custom
+        state.matchPerInstallment = state.amount > 0 ? state.amount : 0;
+        const rm = document.getElementById('recurringMatchInput');
+        if (rm) rm.value = (state.matchPerInstallment || 0).toFixed(2);
+        setupRecurringUiWiring();
+    }
+
+    function setupRecurringUiWiring() {
+        // Recurrence preset handling
+        inputs.recurrencePreset && inputs.recurrencePreset.addEventListener('change', () => {
+            const val = inputs.recurrencePreset.value;
+            if (val === 'monthly') {
+                state.cadence = 'monthly';
+            } else if (val === 'weekly2') {
+                state.cadence = 'weekly';
+                state.weeklyInterval = 2;
+            } else if (val === 'semiMonthly') {
+                state.cadence = 'semiMonthly';
+            } else if (val === 'customWeekly') {
+                state.cadence = 'weekly';
+                state.weeklyInterval = parseInt(inputs.customWeeklyInterval?.value || '1', 10);
+            }
+            toggleRecurrenceUi(val);
+            // Hide any prior blue summaries until a new date is selected
+            const monthlySummary = document.getElementById('monthlySummary');
+            const weeklySummary = document.getElementById('weeklySummary');
+            monthlySummary && monthlySummary.classList.add('hidden');
+            weeklySummary && weeklySummary.classList.add('hidden');
+            projectAndRenderProgram();
+            recomputeSummary();
+            validateRecurring();
+        });
+        inputs.customWeeklyInterval && inputs.customWeeklyInterval.addEventListener('change', () => {
+            if (state.cadence === 'weekly') {
+                state.weeklyInterval = parseInt(inputs.customWeeklyInterval.value || '1', 10);
+                // Update summary for custom preset if start chosen
+                const presetVal = inputs.recurrencePreset ? inputs.recurrencePreset.value : '';
+                const weeklySummary = document.getElementById('weeklySummary');
+                if (weeklySummary && presetVal === 'customWeekly' && state.weeklyStart) {
+                    const d = new Date(state.weeklyStart);
+                    const weekdays = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+                    const weekday = weekdays[d.getDay()] + 's';
+                    const mm = String(d.getMonth()+1).padStart(2,'0');
+                    const dd = String(d.getDate()).padStart(2,'0');
+                    const yy = String(d.getFullYear()).toString().slice(-2);
+                    const n = state.weeklyInterval || 1;
+                    weeklySummary.textContent = `Repeats every ${n} week${n===1?'':'s'} on ${weekday}, starting ${mm}/${dd}/${yy}`;
+                    weeklySummary.classList.remove('hidden');
+                }
+                projectAndRenderProgram();
+            }
+        });
+        // Start date change handling for presets with summaries
+        inputs.recurringStart && inputs.recurringStart.addEventListener('change', () => {
+            state.recurringStart = inputs.recurringStart.value || null;
+            const presetVal = inputs.recurrencePreset ? inputs.recurrencePreset.value : '';
+            if (presetVal === 'monthly' && state.recurringStart) {
+                const d = parseLocalDate(state.recurringStart);
+                const day = d.getDate();
+                state.monthlyDay = day;
+                const ord = (n)=>{const s=['th','st','nd','rd'], v=n%100; return n+(s[(v-20)%10]||s[v]||s[0]);};
+                const monthlySummary = document.getElementById('monthlySummary');
+                if (monthlySummary) {
+                    monthlySummary.textContent = `Repeats every month on the ${ord(day)}`;
+                    monthlySummary.classList.remove('hidden');
+                }
+            } else if (presetVal === 'semiMonthly' && state.recurringStart) {
+                const d = parseLocalDate(state.recurringStart);
+                const mm = String(d.getMonth()+1).padStart(2,'0');
+                const dd = String(d.getDate()).padStart(2,'0');
+                const yy = String(d.getFullYear()).toString().slice(-2);
+                const monthlySummary = document.getElementById('monthlySummary');
+                if (monthlySummary) {
+                    monthlySummary.textContent = `Repeats monthly on the 1st and 15th, starting ${mm}/${dd}/${yy}`;
+                    monthlySummary.classList.remove('hidden');
+                }
+            }
+            validateRecurring(); projectAndRenderProgram();
+        });
+        // Weekly start selection summary (for every 2 weeks and custom weekly)
+        inputs.weeklyStart && inputs.weeklyStart.addEventListener('change', () => {
+            state.weeklyStart = inputs.weeklyStart.value || null;
+            const weeklySummary = document.getElementById('weeklySummary');
+            const presetVal = inputs.recurrencePreset ? inputs.recurrencePreset.value : '';
+            if (weeklySummary && state.weeklyStart && (presetVal === 'weekly2' || presetVal === 'customWeekly')) {
+                const d = parseLocalDate(state.weeklyStart);
+                const weekdays = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+                const weekday = weekdays[d.getDay()] + 's';
+                const mm = String(d.getMonth()+1).padStart(2,'0');
+                const dd = String(d.getDate()).padStart(2,'0');
+                const yy = String(d.getFullYear()).toString().slice(-2);
+                if (presetVal === 'weekly2') {
+                    weeklySummary.textContent = `Every 2 weeks on ${weekday} starting ${mm}/${dd}/${yy}`;
+                } else {
+                    const n = parseInt(inputs.customWeeklyInterval?.value || '1', 10);
+                    weeklySummary.textContent = `Repeats every ${n} week${n===1?'':'s'} on ${weekday}, starting ${mm}/${dd}/${yy}`;
+                }
+                weeklySummary.classList.remove('hidden');
+            }
+            projectAndRenderProgram();
+            recomputeSummary();
+        });
+        // End type toggle
+        Array.from(document.querySelectorAll('input[name="endType"]')).forEach((input) => {
+            input.addEventListener('change', () => {
+                state.endType = input.value;
+                const end = inputs.recurringEnd;
+                if (end) end.classList.toggle('hidden', state.endType !== 'onDate');
+                recomputeSummary();
+                projectAndRenderProgram();
+                validateRecurring();
+            });
+        });
+        // end select behavior
+        inputs.endSelect && inputs.endSelect.addEventListener('change', () => {
+            const val = inputs.endSelect.value;
+            state.endType = val || 'none';
+            const endWrap = document.getElementById('endDateWrap');
+            const help = inputs.endHelp;
+            if (help) {
+                if (val === 'none') help.textContent = "Will renew with your company's match program";
+                else if (val === 'untilMatch') help.textContent = 'Both your donation and any company match will stop';
+                else if (val === 'onDate') help.textContent = 'Choose a date';
+                else help.textContent = '';
+            }
+            if (endWrap) endWrap.classList.toggle('hidden', val !== 'onDate');
+            validateRecurring();
+        });
+        inputs.recurringEnd && inputs.recurringEnd.addEventListener('change', () => {
+            state.recurringEnd = inputs.recurringEnd.value || null;
+            validateRecurring(); projectAndRenderProgram();
+        });
+        // Recurring match edit
+        const display = document.getElementById('recurringMatchDisplay');
+        const displayText = document.getElementById('recurringMatchDisplayText');
+        const inputGroup = document.getElementById('recurringMatchInputGroup');
+        const input = document.getElementById('recurringMatchInput');
+        const editBtn = document.getElementById('recurringEditMatchBtn');
+        function updateDisplay() {
+            if (!display || !displayText) return;
+            const pledge = state.amount || 0;
+            if (pledge > 0) {
+                display.classList.remove('hidden');
+                displayText.textContent = `${toDollar(Math.min(state.matchPerInstallment || 0, pledge))} will be matched each installment`;
+            } else {
+                display.classList.add('hidden');
+                inputGroup && inputGroup.classList.add('hidden');
+            }
+        }
+        window.updateRecurringMatchUi = updateDisplay;
+        // Match edit UX exactly like one-time
+        editBtn && editBtn.addEventListener('click', () => {
+            // keep display visible above while editing
+            inputGroup && inputGroup.classList.remove('hidden');
+            input && input.focus();
+        });
+        input && input.addEventListener('input', () => {
+            const pledge = state.amount || 0;
+            let val = parseFloat(input.value);
+            if (isNaN(val) || val < 0) val = 0;
+            if (val > pledge) val = pledge;
+            input.value = val.toFixed(2);
+            state.matchPerInstallment = val;
+            projectAndRenderProgram();
+            recomputeSummary();
+        });
+        input && input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                inputGroup && inputGroup.classList.add('hidden');
+                updateDisplay();
+            }
+        });
+        updateDisplay();
+        projectAndRenderProgram();
+    }
+
+    function validateRecurring() {
+        // $5 minimum
+        const hasPledge = (state.amount || 0) >= 5;
+        inputs.amountError && inputs.amountError.classList.toggle('hidden', hasPledge);
+        // start date in future (weekly uses weeklyStart; others use recurringStart)
+        const startErr = document.getElementById('startDateError');
+        let startOk = true;
+        if (state.cadence === 'weekly') {
+            const v = inputs.weeklyStart ? inputs.weeklyStart.value : '';
+            if (v) {
+                const today = new Date(); today.setHours(0,0,0,0);
+                const s = parseLocalDate(v);
+                startOk = s && s.getTime() > today.getTime();
+            } else { startOk = false; }
+        } else {
+            if (state.recurringStart) {
+                const today = new Date(); today.setHours(0,0,0,0);
+                const s = parseLocalDate(state.recurringStart);
+                startOk = s && s.getTime() > today.getTime();
+            } else { startOk = false; }
+        }
+        startErr && startErr.classList.toggle('hidden', !!startOk);
+        // end date after start when selected
+        const endErr = document.getElementById('endDateError');
+        let endOk = true;
+        if (state.endType === 'onDate' && state.recurringEnd && state.recurringStart) {
+            endOk = new Date(state.recurringEnd).getTime() > new Date(state.recurringStart).getTime();
+        }
+        endErr && endErr.classList.toggle('hidden', !!endOk);
+        // cadence chosen and end option chosen (dropdown)
+        const cadenceChosen = !!state.cadence;
+        let endChosen = true;
+        if (inputs.endSelect) endChosen = !!inputs.endSelect.value;
+        // enable header CTA when valid
+        const canProceed = hasPledge && startOk && endOk && cadenceChosen && endChosen;
+        if (buttons.checkout) buttons.checkout.disabled = !canProceed;
+        const sideBtn = document.getElementById('checkoutBtnSide');
+        sideBtn && (sideBtn.disabled = !canProceed);
+    }
+
+    function projectAndRenderProgram() {
+        const pledge = state.amount || 0;
+        const match = Math.min(state.matchPerInstallment || pledge, pledge);
+        // default match mirrors pledge if not edited
+        if (!state.matchEdited && (state.matchPerInstallment || 0) === 0) state.matchPerInstallment = match;
+        const cap = state.program.capTotal;
+        const used = state.program.usedToDate;
+        const remaining = Math.max(0, cap - used);
+        const expires = new Date(state.program.expiresAt);
+        // Estimate number of installments until expiry and per end option
+        const start = state.recurringStart ? parseLocalDate(state.recurringStart) : todayLocal();
+        function nextDate(date) {
+            const d = new Date(date);
+            if (state.cadence === 'weekly') {
+                d.setDate(d.getDate() + 7 * (state.weeklyInterval || 1));
+            } else if (state.cadence === 'semiMonthly') {
+                const day = d.getDate();
+                if (day < 15) d.setDate(15); else { d.setMonth(d.getMonth() + 1); d.setDate(1); }
+            } else { // monthly
+                const next = new Date(d);
+                next.setMonth(next.getMonth() + 1);
+                const target = state.monthlyDay || 1;
+                next.setDate(1);
+                const last = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
+                next.setDate(Math.min(target, last));
+                return next;
+            }
+            return d;
+        }
+        // figure first installment date for weekly/semiMonthly based on inputs
+        let first = new Date(start);
+        if (state.cadence === 'weekly' && inputs.weeklyStart && inputs.weeklyStart.value) {
+            first = parseLocalDate(inputs.weeklyStart.value) || first;
+        }
+        if (state.cadence === 'monthly') {
+            const target = state.monthlyDay || 1;
+            const m = new Date(first); m.setDate(1);
+            const last = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
+            m.setDate(Math.min(target, last));
+            if (m <= first) {
+                // advance to next month if today is past target
+                m.setMonth(m.getMonth() + 1);
+                const last2 = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
+                m.setDate(Math.min(target, last2));
+            }
+            first = m;
+        }
+        if (state.cadence === 'semiMonthly') {
+            const day = first.getDate();
+            if (day >= 15) { first.setMonth(first.getMonth() + 1); first.setDate(1); }
+            else first.setDate(15);
+        }
+        // count installment slots until expiry/end (ignore cap here)
+        let installments = 0;
+        let cursor = new Date(first);
+        const endDate = state.endType === 'onDate' && state.recurringEnd ? parseLocalDate(state.recurringEnd) : null;
+        while (cursor <= expires && (!endDate || cursor <= endDate)) {
+            installments++;
+            const next = nextDate(cursor);
+            if (!next || next.getTime() === cursor.getTime()) break;
+            cursor = next;
+        }
+        // If endType is untilMatch, auto-derive end date to the last matched installment date
+        if (state.endType === 'untilMatch') {
+            const endDerived = new Date(first);
+            for (let i = 1; i < installments; i++) endDerived.setTime(nextDate(endDerived).getTime());
+            inputs.recurringEnd && (inputs.recurringEnd.value = '');
+            state.recurringEnd = null;
+        }
+        // Update program card UI
+        const availableEl = document.getElementById('programAvailableLabel');
+        const usedBar = document.getElementById('programUsedBar');
+        const projectedBar = document.getElementById('programProjectedBar');
+        const usedText = document.getElementById('programUsedText');
+        const capText = document.getElementById('programCapText');
+        const capText2 = document.getElementById('programCapText2');
+        const expiresText = document.getElementById('programExpiresText');
+        const projectedText = document.getElementById('programProjectedText');
+        const projectedRow = document.getElementById('programProjectedRow');
+        availableEl && (availableEl.textContent = toDollar(remaining));
+        usedText && (usedText.textContent = toDollarWholeCeil(used));
+        capText && (capText.textContent = toDollarWholeCeil(cap));
+        capText2 && (capText2.textContent = toDollarWholeCeil(cap));
+        expiresText && (expiresText.textContent = new Date(state.program.expiresAt).toLocaleDateString());
+        const projectedVal = Math.max(0, Math.min(remaining, installments * match));
+        // Always compute projection relative to used; yellow shows total (used + projected)
+        const totalWithProjection = Math.min(cap, used + projectedVal);
+        const shouldShowProjection = (state.amount || 0) > 0 && !!state.cadence;
+        if (projectedRow) projectedRow.classList.toggle('hidden', !shouldShowProjection);
+        if (projectedText) projectedText.textContent = toDollarWholeCeil(projectedVal);
+        if (usedBar) {
+            const pctUsed = Math.min(100, Math.round((used / cap) * 100));
+            usedBar.style.width = pctUsed + '%';
+        }
+        if (projectedBar) {
+            if (shouldShowProjection) {
+                const pctTotal = Math.min(100, Math.round((totalWithProjection / cap) * 100));
+                projectedBar.style.width = pctTotal + '%';
+                projectedBar.classList.remove('hidden');
+            } else {
+                projectedBar.classList.add('hidden');
+            }
+        }
+    }
+
+    // Toggle recurrence preset specific UI blocks
+    function toggleRecurrenceUi(preset) {
+        const monthlyOpts = document.getElementById('monthlyOptions');
+        const weeklyOpts = document.getElementById('weeklyOptions');
+        const customWrap = document.getElementById('customWeeklyWrap');
+        const generalStart = document.getElementById('generalStartBlock');
+        const weeklySummary = document.getElementById('weeklySummary');
+        const monthlySummary = document.getElementById('monthlySummary');
+        if (!preset) {
+            monthlyOpts && monthlyOpts.classList.add('hidden');
+            weeklyOpts && weeklyOpts.classList.add('hidden');
+            customWrap && customWrap.classList.add('hidden');
+            generalStart && generalStart.classList.add('hidden');
+            weeklySummary && weeklySummary.classList.add('hidden');
+            monthlySummary && monthlySummary.classList.add('hidden');
+        } else if (preset === 'monthly') {
+            monthlyOpts && monthlyOpts.classList.remove('hidden');
+            weeklyOpts && weeklyOpts.classList.add('hidden');
+            customWrap && customWrap.classList.add('hidden');
+            generalStart && generalStart.classList.remove('hidden');
+            weeklySummary && weeklySummary.classList.add('hidden');
+            monthlySummary && monthlySummary.classList.add('hidden');
+        } else if (preset === 'weekly2') {
+            weeklyOpts && weeklyOpts.classList.remove('hidden');
+            monthlyOpts && monthlyOpts.classList.add('hidden');
+            customWrap && customWrap.classList.add('hidden');
+            state.weeklyInterval = 2;
+            generalStart && generalStart.classList.add('hidden');
+            weeklySummary && weeklySummary.classList.add('hidden');
+            monthlySummary && monthlySummary.classList.add('hidden');
+        } else if (preset === 'semiMonthly') {
+            monthlyOpts && monthlyOpts.classList.add('hidden');
+            weeklyOpts && weeklyOpts.classList.add('hidden');
+            customWrap && customWrap.classList.add('hidden');
+            generalStart && generalStart.classList.remove('hidden');
+            weeklySummary && weeklySummary.classList.add('hidden');
+            monthlySummary && monthlySummary.classList.add('hidden');
+        } else if (preset === 'customWeekly') {
+            weeklyOpts && weeklyOpts.classList.remove('hidden');
+            monthlyOpts && monthlyOpts.classList.add('hidden');
+            customWrap && customWrap.classList.remove('hidden');
+            generalStart && generalStart.classList.add('hidden');
+            weeklySummary && weeklySummary.classList.add('hidden');
+            monthlySummary && monthlySummary.classList.add('hidden');
+        }
+    }
 })();
 
 
