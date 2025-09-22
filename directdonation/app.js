@@ -754,7 +754,19 @@
             fct.classList.remove('hidden');
         }
         const dueLabel = document.getElementById('fundingDueLabel');
-        if (dueLabel && state.donationType === 'recurring') dueLabel.textContent = 'Amount due each installment';
+        // No transaction fee on recurring: strike through fixed fee amount and label, show badge
+        const fixedLabel = document.getElementById('fundingFeeFixedLabel');
+        const noFees = document.getElementById('fundingNoFeesBadge');
+        if (state.donationType === 'recurring') {
+            dueLabel && (dueLabel.textContent = 'Amount due each installment');
+            fixedLabel && fixedLabel.classList.add('line-through');
+            fundingEls.feeFixed && (fundingEls.feeFixed.classList.add('line-through'));
+            noFees && noFees.classList.remove('hidden');
+        } else {
+            fixedLabel && fixedLabel.classList.remove('line-through');
+            fundingEls.feeFixed && (fundingEls.feeFixed.classList.remove('line-through'));
+            noFees && noFees.classList.add('hidden');
+        }
     }
 
 	// Inject options
