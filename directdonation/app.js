@@ -193,6 +193,7 @@
 	};
     let isChooseOpen = false;
     let isInitialRendered = false;
+    let chooseLockOneTime = false;
 
     function resetAllState() {
         state.donationType = null;
@@ -316,6 +317,23 @@
         state.donationType = null;
         if (buttons.chooseContinue) buttons.chooseContinue.disabled = true;
         Array.from(document.querySelectorAll('#view-choose .select-card')).forEach((c) => c.classList.remove('selected'));
+        // Toggle "Use donation credits" badge based on hasCredits
+        const creditsBadge = document.getElementById('badgeUseCredits');
+        if (creditsBadge) creditsBadge.classList.toggle('hidden', !state.hasCredits);
+        // If locked to one-time (credits entry), preselect and disable recurring
+        if (chooseLockOneTime) {
+            const oneTimeCard = document.querySelector('#view-choose .select-card[data-type="oneTime"]');
+            const recurringCard = document.querySelector('#view-choose .select-card[data-type="recurring"]');
+            if (oneTimeCard) {
+                oneTimeCard.classList.add('selected');
+                state.donationType = 'oneTime';
+                if (buttons.chooseContinue) buttons.chooseContinue.disabled = false;
+            }
+            if (recurringCard) {
+                recurringCard.classList.add('pointer-events-none','opacity-60');
+                recurringCard.setAttribute('aria-disabled','true');
+            }
+        }
     }
 
     function closeChooseModal() {
@@ -331,6 +349,13 @@
         state.donationType = null;
         buttons.chooseContinue.disabled = true;
         Array.from(document.querySelectorAll('#view-choose .select-card')).forEach((c) => c.classList.remove('selected'));
+        // Re-enable if locked
+        const recurringCard = document.querySelector('#view-choose .select-card[data-type="recurring"]');
+        if (recurringCard) {
+            recurringCard.classList.remove('pointer-events-none','opacity-60');
+            recurringCard.removeAttribute('aria-disabled');
+        }
+        chooseLockOneTime = false;
     }
 
     function updateHeaderCta() {
@@ -780,13 +805,11 @@
 	})();
 
 	// Event wiring
-    // Credits button → one-time only, preselected (no recurring modal)
-    buttons.startDonate.addEventListener('click', () => {
+    // Credits button → open modal, lock to one-time
+    buttons.startDonate && buttons.startDonate.addEventListener('click', () => {
         state.hasCredits = true;
-        state.donationType = 'oneTime';
-        show('oneTime');
-        toggleCreditsUI();
-        recomputeSummary();
+        chooseLockOneTime = true;
+        openChooseModal();
     });
     // No-credits button → open modal to choose one-time or recurring
     buttons.startDonateNoCredits && buttons.startDonateNoCredits.addEventListener('click', () => {
@@ -851,7 +874,9 @@
     const chooseContainer = document.getElementById('view-choose');
     function handleSelectCard(cardEl) {
         if (!cardEl || !chooseContainer || chooseContainer.classList.contains('hidden')) return;
-        state.donationType = cardEl.getAttribute('data-type');
+        const type = cardEl.getAttribute('data-type');
+        if (chooseLockOneTime && type === 'recurring') return;
+        state.donationType = type;
         if (buttons.chooseContinue) { buttons.chooseContinue.disabled = false; buttons.chooseContinue.removeAttribute('disabled'); }
         Array.from(document.querySelectorAll('#view-choose .select-card')).forEach((c) => c.classList.remove('selected'));
         cardEl.classList.add('selected');
