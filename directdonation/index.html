@@ -457,7 +457,8 @@
                 <div class="flex items-center justify-between"><span id="fundingFeeFixedLabel" class="text-[#71717A]">Transaction fee</span><span id="fundingFeeFixed" class="text-[#71717A]">$0.00</span></div>
                 <div id="fundingNoFeesBadge" class="hidden mt-2 w-full text-center rounded-full bg-emerald-100 text-emerald-700 px-3 py-2 text-xs font-medium">No transaction fees on recurring!</div>
                 <div id="fundingFeeCardRow" class="hidden flex items-center justify-between"><span class="text-[#71717A]">Stripe processing fee (required)</span><span id="fundingFeeCard" class="text-[#71717A]">$0.00</span></div>
-                <div class="flex items-center justify-between border-t pt-2 font-semibold text-[16px] mb-2"><span id="fundingDueLabel">Amount due each installment</span><span id="fundingTotal">$0.00</span></div>
+                <div id="fundingGoingRow" class="hidden flex items-center justify-between text-[14px] text-[#71717A] font-medium border-t pt-2 mb-2"><span>Amount going to Team Rubicon</span><span id="fundingGoingAmount">$0.00</span></div>
+                <div class="flex items-center justify-between border-t pt-2 font-semibold text-[16px] mb-2 text-sky-700"><span id="fundingDueLabel">Amount due each installment</span><span id="fundingTotal">$0.00</span></div>
                 <div id="fundingCadenceText" class="hidden text-sm font-medium text-sky-700 mb-4"></div>
                 <button id="fundingContinueBtn" class="mt-4 inline-flex w-full items-center justify-center rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white"><span>Review and add a note</span><i class="ph-bold ph-arrow-right ml-2"></i></button>
               </div>
@@ -560,6 +561,10 @@
             </div>
 
             <div class="space-y-2">
+              <div id="pledgeFeeBreakdown" class="hidden space-y-1">
+                <div class="flex items-center justify-between text-[14px] text-[#71717A]"><span>Your donation</span><span id="pledgeConfirmDonationAmount">$0.00</span></div>
+                <div class="flex items-center justify-between text-[14px] text-[#71717A]"><span>Transaction fee</span><span id="pledgeConfirmFeeFixed">$0.00</span></div>
+              </div>
               <div class="flex items-center justify-between text-[16px] font-semibold text-sky-700">
                 <span class="inline-flex items-center gap-2"><i id="pledgeDueIcon" class="ph-bold ph-arrows-clockwise hidden"></i><span>Amount due from you</span></span>
                 <span id="pledgeDue">$0.00</span>

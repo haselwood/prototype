@@ -735,6 +735,20 @@
         const totalDue = pledge + (state.donationType === 'recurring' ? 0 : fees.dueFee);
         if (fundingEls.total) fundingEls.total.textContent = toDollar(totalDue);
         if (fundingEls.donationRow) fundingEls.donationRow.textContent = toDollar(pledge);
+        // Amount going to Team Rubicon (one-time with pledge path only)
+        const goingRow = document.getElementById('fundingGoingRow');
+        const goingAmt = document.getElementById('fundingGoingAmount');
+        if (goingRow && goingAmt) {
+            const isCreditsOnly = state.view === 'oneTime' && (state.amount < 5) && (state.otCreditsApplied || 0) > 0;
+            if (state.donationType !== 'recurring' && !isCreditsOnly) {
+                const coverFixed = !!(fundingEls.coverFee && fundingEls.coverFee.checked);
+                const going = pledge - (coverFixed ? 0 : 0.50);
+                goingAmt.textContent = toDollar(Math.max(0, going));
+                goingRow.classList.remove('hidden');
+            } else {
+                goingRow.classList.add('hidden');
+            }
+        }
         // Show contextual action buttons
         const addBankWrap = document.getElementById('addBankWrap');
         const addCardWrap = document.getElementById('addCardWrap');
@@ -801,6 +815,7 @@
             fundingEls.feeFixed && (fundingEls.feeFixed.classList.add('line-through'));
             noFees && noFees.classList.remove('hidden');
         } else {
+            dueLabel && (dueLabel.textContent = 'Amount due from you');
             fixedLabel && fixedLabel.classList.remove('line-through');
             fundingEls.feeFixed && (fundingEls.feeFixed.classList.remove('line-through'));
             noFees && noFees.classList.add('hidden');
@@ -1084,6 +1099,24 @@
         if (pledgeConfirmEls.donateBtn) {
             const span = pledgeConfirmEls.donateBtn.querySelector('span');
             if (span) span.textContent = (state.donationType === 'recurring') ? 'Donate and schedule payments' : `Donate and pay ${toDollar(due)}`;
+        }
+        // Show fee breakdown above Amount due when user chose to cover fixed fee (one-time only)
+        const feeBreak = document.getElementById('pledgeFeeBreakdown');
+        const feeDonation = document.getElementById('pledgeConfirmDonationAmount');
+        const feeFixed = document.getElementById('pledgeConfirmFeeFixed');
+        if (feeBreak && feeDonation && feeFixed) {
+            if (!isRecurringConfirm) {
+                if (fundingEls.coverFee && fundingEls.coverFee.checked) {
+                    feeDonation.textContent = toDollar(pledge);
+                    // fixed fee is always $0.50 in this prototype
+                    feeFixed.textContent = toDollar(0.50);
+                    feeBreak.classList.remove('hidden');
+                } else {
+                    feeBreak.classList.add('hidden');
+                }
+            } else {
+                feeBreak.classList.add('hidden');
+            }
         }
         // Note/anon defaults from state
         if (pledgeConfirmEls.note) pledgeConfirmEls.note.value = state.note || '';
