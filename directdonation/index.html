@@ -30,36 +30,27 @@
     <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
     <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css" />
     <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/duotone/style.css" />
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body class="bg-background text-foreground">
     <header id="siteHeader" class="hidden sticky top-0 z-50 w-full border-b border-border bg-white">
-      <div class="relative flex items-center px-6 py-2">
+      <div class="relative flex items-center px-6 py-2 gap-2">
         <button id="exitBtn" class="btn-outline text-sm">Exit</button>
+        <button id="backToDonationBtn" class="btn-outline text-sm hidden">Back to donation</button>
         <div class="absolute left-1/2 -translate-x-1/2 text-base font-semibold text-zinc-900">Make a one-time donation</div>
-        <button id="checkoutBtn" disabled class="btn-outline text-sm disabled:cursor-not-allowed disabled:opacity-70 hidden">
-          Go to checkout
-        </button>
+        
+      </div>
+      <!-- Sticky progress bar under header -->
+      <div id="progressContainer" class="hidden">
+        <div class="w-full" style="height:8px; background:#CFEDFB">
+          <div id="progressFill" class="transition-all duration-300" style="height:8px; width:50%; background:#0EA5E9" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50"></div>
+        </div>
       </div>
     </header>
 
     <main class="grid max-w-none grid-cols-1 gap-6 px-0 pt-0 pb-8 md:grid-cols-12 bg-zinc-50 min-h-screen">
       <!-- Left content column -->
-      <!-- Left floating match program (desktop) -->
-      <aside id="leftMatchAside" class="hidden">
-        <div id="leftMatchCard" class="card p-4 w-[280px]">
-          <div class="flex items-center justify-between">
-            <div class="font-medium">CBC Capital</div>
-            <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">1x match</span>
-          </div>
-          <div class="mt-2 text-sm text-gray-600">$450 match available</div>
-          <div class="mt-2 h-2 w-full rounded bg-gray-200">
-            <div class="h-2 rounded bg-emerald-500" style="width:45%"></div>
-          </div>
-          <div class="mt-1 text-xs text-gray-600">$550/$1,000 used</div>
-          <button class="mt-3 btn-outline text-sm w-full">View (1) additional program</button>
-        </div>
-      </aside>
 
       <div id="leftCol" class="md:col-span-12">
         <!-- View: Start -->
@@ -76,6 +67,7 @@
                 <i class="ph ph-x"></i>
               </button>
             </div>
+
             <div class="grid gap-4 px-6 pt-2 pb-0 sm:grid-cols-2">
               <button class="select-card" data-type="oneTime">
                 <div class="select-card-inner">
@@ -99,6 +91,22 @@
                 Continue <i class="ph-bold ph-arrow-right ml-2"></i>
               </button>
             </div>
+          </div>
+        </section>
+
+        <!-- Add Bank Modal (prototype) -->
+        <section id="modalPlaid" class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/60 p-4">
+          <div class="card w-full max-w-sm p-6 text-center">
+            <div class="text-lg font-semibold mb-2">Plaid flow</div>
+            <button id="modalPlaidClose" class="mt-2 inline-flex w-full items-center justify-center rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white">Close</button>
+          </div>
+        </section>
+
+        <!-- Add Card Modal (prototype) -->
+        <section id="modalStripe" class="fixed inset-0 z-[70] hidden items-center justify-center bg-black/60 p-4">
+          <div class="card w-full max-w-sm p-6 text-center">
+            <div class="text-lg font-semibold mb-2">Stripe flow</div>
+            <button id="modalStripeClose" class="mt-2 inline-flex w-full items-center justify-center rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white">Close</button>
           </div>
         </section>
 
@@ -135,7 +143,7 @@
               <div class="credit-row px-6 py-4">
                 <div class="flex items-start justify-between gap-4">
                   <label class="flex items-start gap-2">
-                    <input class="credit-enable mt-1 h-4 w-4" type="checkbox" />
+                    <input class="credit-enable mt-1 h-4 w-4 accent-sky-700" type="checkbox" />
                     <span>
                       <div class="font-medium leading-tight">Employee Gift Q2</div>
                       <div class="mt-0.5 text-xs text-gray-500 leading-tight">Expires 12/31/25</div>
@@ -155,7 +163,7 @@
               <div class="credit-row border-t px-6 py-4">
                 <div class="flex items-start justify-between gap-4">
                   <label class="flex items-start gap-2">
-                    <input class="credit-enable mt-1 h-4 w-4" type="checkbox" />
+                    <input class="credit-enable mt-1 h-4 w-4 accent-sky-700" type="checkbox" />
                     <span>
                       <div class="font-medium leading-tight">Hackathon 2025 Win</div>
                       <div class="mt-0.5 text-xs text-gray-500 leading-tight">Never expires</div>
@@ -173,11 +181,10 @@
               </div>
             </div>
           </div>
-          <p class="mt-2 mb-4 text-center text-[14px] text-[#71717A]">Credits aren’t eligible for a company match</p>
+          
 
           <div class="mt-0 text-center">
             <h2 class="mb-1 text-[18px] font-semibold">Fund a donation and get a company match</h2>
-            <p class="mb-2 text-[16px] text-gray-600">You'll pick a funding source next</p>
           </div>
           <div class="card p-6 text-center">
             <div class="flex flex-wrap justify-center gap-2" id="otAmountChips">
@@ -194,7 +201,7 @@
             <p id="otAmountError" class="mt-2 hidden text-sm text-red-600">Minimum is $5</p>
             <div id="matchDisplay" class="mt-3 hidden text-sm font-medium text-sky-700">
               <span id="matchDisplayText"></span>
-              <button id="editMatchBtn" class="ml-2 inline-flex items-center rounded border border-gray-300 px-2 py-1 text-xs"><i class="ph-bold ph-pencil-simple"></i></button>
+              <button id="editMatchBtn" class="ml-2 inline-flex items-center rounded border border-gray-300 px-2 py-1 text-xs"><i class="ph-bold ph-pencil-simple text-[16px]"></i></button>
             </div>
             <div id="matchInputGroup" class="mt-3 hidden">
               <div class="mb-1 text-xs text-gray-600">Company match to request</div>
@@ -203,6 +210,25 @@
                 <input id="matchAmountInput" type="number" min="0" step="0.01" class="input h-10 w-40 pl-6 text-center" value="0.00" />
               </div>
             </div>
+          </div>
+          <!-- Center match program card under the donation box -->
+          <div class="card p-6 mt-4" style="background:#F4F4F5">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <div class="flex h-10 w-10 items-center justify-center rounded-full bg-sky-700 text-white font-semibold">C</div>
+                <div class="font-medium">CBC Capital</div>
+              </div>
+              <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">1x match</span>
+            </div>
+            <div class="mt-2 text-[14px] font-semibold text-gray-800">$450 match available</div>
+            <div class="mt-2 h-2 w-full rounded bg-gray-200">
+              <div class="h-2 rounded" style="width:45%; background:#0EA5E9"></div>
+            </div>
+            <div class="mt-1 flex items-center justify-between text-[14px] text-[#71717A]">
+              <span>$550/$1,000 used</span>
+              <span>Ends 12/31/25</span>
+            </div>
+            <button class="mt-3 btn-outline text-sm w-full">View (1) additional program</button>
           </div>
           <div class="clear-both"></div>
           </div>
@@ -261,6 +287,163 @@
           <!-- Body CTAs removed in favor of header actions -->
         </section>
 
+        <!-- View: One-time Funding (pledge path) -->
+        <section id="view-oneTimeFunding" data-view class="hidden">
+          <div id="fundingContent" class="mx-auto max-w-[448px] space-y-6 mt-6">
+            <div class="text-center">
+              <h3 class="text-[18px] font-semibold">How do you want to fund your <span id="fundingAmountLabel">$0.00</span> portion of this donation?</h3>
+            </div>
+
+            <div class="space-y-3">
+              <!-- Saved bank -->
+              <label class="block rounded-md border border-gray-200 bg-white p-4 cursor-pointer">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-3">
+                    <input type="radio" name="fundingMethod" value="bankSaved" class="h-4 w-4 accent-sky-700" checked />
+                    <span class="text-[14px] font-medium">Chase -XXXX</span>
+                  </div>
+                  <span class="rounded border px-2 py-0.5 text-[12px] text-[#71717A] flex items-center gap-1"><i class="ph-bold ph-bank text-[14px]"></i></span>
+                </div>
+              </label>
+
+              <!-- Saved bank 2 (appears after Plaid close) -->
+              <label id="savedBank2Wrap" class="hidden block rounded-md border border-gray-200 bg-white p-4 cursor-pointer">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-3">
+                    <input type="radio" name="fundingMethod" value="bankSaved2" class="h-4 w-4 accent-sky-700" />
+                    <span class="text-[14px] font-medium">Wells Fargo -1234</span>
+                  </div>
+                  <span class="rounded border px-2 py-0.5 text-[12px] text-[#71717A] flex items-center gap-1"><i class="ph-bold ph-bank text-[14px]"></i></span>
+                </div>
+              </label>
+
+              <!-- Add bank -->
+              <label class="block rounded-md border border-gray-200 bg-white p-4 cursor-pointer">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-3">
+                    <input type="radio" name="fundingMethod" value="bankAdd" class="h-4 w-4 accent-sky-700" />
+                    <span class="text-[14px] font-medium">Add a US-based bank account</span>
+                  </div>
+                  <span class="rounded border px-2 py-0.5 text-[12px] text-[#71717A] flex items-center gap-1"><i class="ph-bold ph-bank text-[14px]"></i></span>
+                </div>
+                <div id="addBankWrap" class="mt-3 hidden">
+                  <button id="addBankBtn" class="w-full inline-flex items-center justify-center h-10 rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                    <i class="ph-bold ph-bank text-[#71717A] mr-2"></i>
+                    <span>Add bank info</span>
+                  </button>
+                </div>
+              </label>
+
+              <!-- Groundswell account -->
+              <label class="block rounded-md border border-gray-200 bg-white p-4 cursor-pointer">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-3">
+                    <input type="radio" name="fundingMethod" value="gsa" class="h-4 w-4 accent-sky-700" />
+                    <span class="text-[14px] font-medium">Groundswell Giving Account</span>
+                  </div>
+                  <span class="inline-flex items-center gap-2">
+                    <span id="gsaBalanceLabel" class="text-sky-700 font-semibold">$0.00</span>
+                    <span class="rounded border px-2 py-0.5 text-[12px] text-gray-600 flex items-center"><span class="h-3 w-3 rounded-full bg-emerald-500 inline-block"></span></span>
+                  </span>
+                </div>
+                <div id="gsaError" class="mt-2 hidden text-sm text-red-600">You don’t have enough fund to cover this donation. Fund your account to continue with this funding source.</div>
+              </label>
+
+              <!-- Card -->
+              <label class="block rounded-md border border-gray-200 bg-white p-4 cursor-pointer">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-3">
+                    <input type="radio" name="fundingMethod" value="card" class="h-4 w-4 accent-sky-700" />
+                    <span class="text-[14px] font-medium">Credit/Debit Card</span>
+                  </div>
+                  <span class="rounded border px-2 py-0.5 text-[12px] text-gray-600">stripe</span>
+                </div>
+                <div class="mt-2 text-sm text-[#71717A]">Adds required 2.9% credit card processing fee</div>
+                <div id="cardAdded" class="hidden mt-2 text-sm text-emerald-700 inline-flex items-center gap-1"><i class="ph-bold ph-check-circle text-[16px]"></i><span>Payment info added</span></div>
+                <div id="addCardWrap" class="mt-3 hidden">
+                  <button id="addCardBtn" class="w-full inline-flex items-center justify-center h-10 rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                    <i class="ph-duotone ph-credit-card text-[#71717A] mr-2"></i>
+                    <span>Add payment info</span>
+                  </button>
+                </div>
+              </label>
+            </div>
+
+            <label class="flex items-start gap-2 text-sm">
+              <input id="coverFeeFunding" type="checkbox" class="mt-1 h-4 w-4 accent-sky-700" checked />
+              <span>
+                <div class="text-[14px] font-medium">I’ll cover the transaction fee</div>
+                <div class="text-xs text-gray-500">This helps charities receive the full intended amount</div>
+              </span>
+            </label>
+
+            <div class="space-y-3">
+              <div class="space-y-2 text-sm">
+                <div class="flex items-center justify-between"><span>Your donation</span><span id="fundingDonation">$0.00</span></div>
+                <div class="flex items-center justify-between"><span class="text-[#71717A]">Transaction fee</span><span id="fundingFeeFixed" class="text-[#71717A]">$0.00</span></div>
+                <div id="fundingFeeCardRow" class="hidden flex items-center justify-between"><span class="text-[#71717A]">Stripe processing fee (required)</span><span id="fundingFeeCard" class="text-[#71717A]">$0.00</span></div>
+                <div class="flex items-center justify-between border-t pt-2 font-semibold text-[16px] mb-6"><span>Amount due from you</span><span id="fundingTotal">$0.00</span></div>
+                <button id="fundingContinueBtn" class="mt-11 inline-flex w-full items-center justify-center rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white"><span>Review and add a note</span><i class="ph-bold ph-arrow-right ml-2"></i></button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- View: One-time Credits Confirmation -->
+        <section id="view-oneTimeConfirm" data-view class="hidden">
+          <div id="confirmContent" class="mx-auto max-w-[448px] space-y-6 mt-6">
+            <div class="flex items-center justify-center">
+              <div class="flex items-center justify-center h-16 w-16 rounded-full bg-red-600 text-white text-xl font-semibold">T</div>
+            </div>
+
+            <div class="text-center">
+              <h3 id="reviewTitle" class="mb-1 text-[18px] font-semibold">Let's review your $0.00 donation to Team Rubicon</h3>
+            </div>
+
+            <div class="card p-0 overflow-hidden">
+              <div class="rounded-md bg-white p-0">
+                <div id="reviewList" class="">
+                  <!-- credit rows injected here -->
+                </div>
+                <div class="px-4">
+                  <div class="flex items-center justify-between py-3 border-t border-gray-200">
+                    <div class="text-[14px] font-medium">Total donation</div>
+                    <div id="reviewTotal" class="text-[14px] font-semibold">$0.00</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="-mt-3 text-sm text-gray-500 flex items-center gap-1 px-1">
+              <span>This will appear as <span id="reviewTxnCount">1</span> transactions in your giving history</span>
+              <span class="relative inline-flex items-center group">
+                <i class="ph-bold ph-info text-gray-400" style="font-size:16px"></i>
+                <span role="tooltip" class="pointer-events-none absolute left-1/2 top-full z-10 hidden -translate-x-1/2 mt-1 whitespace-normal text-left w-[300px] max-w-[300px] rounded-md bg-zinc-900 px-2 py-1 text-[11px] text-white group-hover:block">We're bundling your donation to make it easy for you to give. When communicating with a charity or looking at your giving history, be aware that these line items will appear as separate transactions</span>
+              </span>
+            </div>
+
+            <div class="card p-4">
+              <div class="mb-2 text-sm font-medium">Add a message to Team Rubicon</div>
+              <textarea id="npoNote" rows="4" class="input w-full" placeholder=" Use this feield to add a note to your donation - e.g. In honor/memory of, Race/Fundraiser Team Name, Membership number"></textarea>
+              <label class="mt-3 flex items-center gap-2 text-sm"><input id="npoAnonymous" type="checkbox" class="h-4 w-4 accent-sky-700" /><span>Make my donation anonymous</span></label>
+            </div>
+
+            <div class="space-y-4">
+              <div class="flex items-center justify-between text-[16px] font-semibold text-sky-700">
+                <span>Amount due from you</span>
+                <span id="reviewDue">$0.00</span>
+              </div>
+              <div class="flex items-center justify-between text-[16px] font-semibold">
+                <span>Total going to Team Rubicon</span>
+                <span id="reviewTotalOrg">$0.00</span>
+              </div>
+            </div>
+
+            <div>
+              <button id="donateSubmit" class="w-full inline-flex items-center justify-center rounded-md bg-zinc-900 px-6 py-3 text-sm font-medium text-white"><i class="ph-duotone ph-money mr-2 text-[18px]"></i><span>Donate</span></button>
+            </div>
+          </div>
+        </section>
+
         <!-- View: Confirmation -->
         <section id="view-confirmation" data-view class="card hidden p-6">
           <h2 class="mb-2 text-lg font-semibold">You're all set</h2>
@@ -281,20 +464,33 @@
       <!-- Right summary column -->
       <aside id="rightAside" class="hidden">
         <div class="card hidden p-6 overflow-auto rounded-none border-l border-border" id="summaryCard">
-          <h3 class="mb-4 text-[18px] font-semibold">You're sending a total of <span id="sumHeadlineTotal">$0.00</span> to Team Rubicon</h3>
-          <div class="space-y-3 text-sm" id="creditsItemization">
+          <h3 class="mb-4 text-[20px] font-semibold">You're sending a total of <span id="sumHeadlineTotal">$0.00</span> to Team Rubicon</h3>
+          <div class="space-y-3 text-sm mb-6" id="creditsItemization">
             <!-- credit rows injected here when applied -->
           </div>
-          <p class="mt-2 mb-3 px-0 py-2 text-xs text-gray-500 invisible" id="creditsNote">This will appear as multiple transactions in your giving history</p>
           <div class="space-y-3 text-sm">
-            <div class="flex items-center justify-between"><span>Covered by your company</span><span id="sumCovered">$0.00</span></div>
             <div class="flex items-center justify-between text-sky-700 font-semibold"><span>Amount due from you</span><span id="sumDue">$0.00</span></div>
+            <div class="flex items-center justify-between"><span>Covered by your company</span><span id="sumCovered">$0.00</span></div>
             <div class="flex items-center justify-between border-t pt-2 font-semibold"><span>Donation total</span><span id="sumTotal">$0.00</span></div>
           </div>
           <button id="checkoutBtnSide" class="mt-4 inline-flex w-full items-center justify-center rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-70"><span>Go to checkout</span><i class="ph-bold ph-arrow-right ml-2"></i></button>
         </div>
       </aside>
     </main>
+
+    <!-- Success Modal -->
+    <section id="donateSuccess" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/60 p-4">
+      <canvas id="donateConfetti" class="pointer-events-none absolute inset-0 z-[59]"></canvas>
+      <div class="relative z-[60] card w-full max-w-md overflow-hidden p-8">
+        <div class="text-lg font-semibold mb-2 hidden" id="donateCharged">You were charged $0.00</div>
+        <div class="text-[20px] font-semibold leading-snug mb-6">Thank you! Your total impact of <span id="donateImpact">$0.00</span> is on its way to</div>
+        <div class="flex items-center gap-3 mb-8">
+          <span class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-red-600 text-white font-semibold">T</span>
+          <span class="text-[16px] font-semibold">Team Rubicon</span>
+        </div>
+        <button id="donateCloseBtn" class="inline-flex w-full items-center justify-center rounded-md bg-zinc-900 px-3 py-3 text-sm font-medium text-white">Close</button>
+      </div>
+    </section>
 
     <script src="./app.js"></script>
   </body>

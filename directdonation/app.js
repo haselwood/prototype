@@ -2,11 +2,17 @@
     const views = {
         start: document.getElementById('view-start'),
         oneTime: document.getElementById('view-oneTime'),
+        oneTimeFunding: document.getElementById('view-oneTimeFunding'),
         recurring: document.getElementById('view-recurring'),
+        oneTimeConfirm: document.getElementById('view-oneTimeConfirm'),
         confirmation: document.getElementById('view-confirmation'),
     };
 
     const header = document.getElementById('siteHeader');
+    const progress = {
+        container: document.getElementById('progressContainer'),
+        fill: document.getElementById('progressFill'),
+    };
     const leftCol = document.getElementById('leftCol');
     const rightAside = document.getElementById('rightAside');
 
@@ -40,6 +46,7 @@
 	const buttons = {
 		checkout: document.getElementById('checkoutBtn'),
 		startDonate: document.getElementById('startDonateBtn'),
+		backToDonation: document.getElementById('backToDonationBtn'),
 		chooseBack: document.getElementById('chooseBackBtn'),
 		chooseContinue: document.getElementById('chooseContinueBtn'),
 		oneTimeBack: document.getElementById('oneTimeBackBtn'),
@@ -70,6 +77,53 @@
 		total: document.getElementById('confirmTotal'),
 	};
 
+    const reviewEls = {
+        title: document.getElementById('reviewTitle'),
+        list: document.getElementById('reviewList'),
+        total: document.getElementById('reviewTotal'),
+        txnCount: document.getElementById('reviewTxnCount'),
+        totalOrg: document.getElementById('reviewTotalOrg'),
+        note: document.getElementById('npoNote'),
+        anonymous: document.getElementById('npoAnonymous'),
+        donateSubmit: document.getElementById('donateSubmit'),
+    };
+    const fundingEls = {
+        amountLabel: document.getElementById('fundingAmountLabel'),
+        balance: document.getElementById('fundingBalance'),
+        feeFixed: document.getElementById('fundingFeeFixed'),
+        feeCardRow: document.getElementById('fundingFeeCardRow'),
+        feeCard: document.getElementById('fundingFeeCard'),
+        total: document.getElementById('fundingTotal'),
+        goingRow: document.getElementById('fundingGoingRow'),
+        goingAmount: document.getElementById('fundingGoingAmount'),
+        youPay: document.getElementById('fundingYouPay'),
+        charity: document.getElementById('fundingCharity'),
+        donationRow: document.getElementById('fundingDonation'),
+        coverFee: document.getElementById('coverFeeFunding'),
+        gsaError: document.getElementById('gsaError'),
+        gsaBalanceLabel: document.getElementById('gsaBalanceLabel'),
+    };
+    const successEls = {
+        overlay: document.getElementById('donateSuccess'),
+        charged: document.getElementById('donateCharged'),
+        impact: document.getElementById('donateImpact'),
+        txnText: document.getElementById('donateTxnText'),
+        close: document.getElementById('donateCloseBtn'),
+    };
+    // Prepare confetti canvas (initialize when modal opens so size isn't 0x0)
+    const confettiCanvas = document.getElementById('donateConfetti');
+    let fireConfetti = null;
+    function ensureConfettiReady() {
+        if (!window.confetti || !confettiCanvas) return null;
+        const overlayEl = document.getElementById('donateSuccess');
+        const w = overlayEl ? overlayEl.clientWidth : window.innerWidth;
+        const h = overlayEl ? overlayEl.clientHeight : window.innerHeight;
+        confettiCanvas.width = w;
+        confettiCanvas.height = h;
+        fireConfetti = window.confetti.create(confettiCanvas, { resize: false, useWorker: true });
+        return fireConfetti;
+    }
+
     const state = {
 		view: 'start',
 		donationType: null, // 'oneTime' | 'recurring'
@@ -82,8 +136,28 @@
 		weeklyStart: null,
 		employerCoversFee: false,
         matchEdited: false,
+        note: '',
+        anonymous: false,
+        fundingMethod: 'bankSaved', // 'bankSaved' | 'bankAdd' | 'gsa' | 'card'
+        gsaBalance: 100,
+        cardInfoAdded: false,
 	};
     let isChooseOpen = false;
+
+    function updateHeaderForView() {
+        if (!header) return;
+        // Show back button only on one-time credits confirmation
+        if (buttons.backToDonation) {
+            buttons.backToDonation.classList.toggle('hidden', !(state.view === 'oneTimeConfirm' || state.view === 'oneTimeFunding'));
+        }
+        // Header checkout visibility/label
+        if (buttons.checkout) {
+            // Show header checkout only on funding view; hide elsewhere
+            const shouldShow = state.view === 'oneTimeFunding';
+            buttons.checkout.classList.toggle('hidden', !shouldShow);
+            buttons.checkout.disabled = false;
+        }
+    }
 
     function show(view) {
 		Object.values(views).forEach((el) => el.classList.add('hidden'));
@@ -92,14 +166,30 @@
 		updateHeaderCta();
         // Hide header on start screen or when modal is open
         if (header) header.classList.toggle('hidden', view === 'start' || isChooseOpen);
+        updateHeaderForView();
         // Keep main content centered always; toggle the floating receipt panel separately
         if (rightAside) {
             if (view === 'start') {
                 rightAside.classList.add('hidden');
+            } else if (view === 'oneTime') {
+                rightAside.classList.remove('hidden');
+            } else if (view === 'oneTimeConfirm' || view === 'oneTimeFunding') {
+                rightAside.classList.add('hidden');
+                rightAside.style.display = 'none';
             }
         }
         // Ensure match card is shown on one-time and recurring screens from the start
         positionLeftMatchCard();
+        // Funding-specific visibility fixes
+        if (view === 'oneTimeFunding') {
+            if (header) header.classList.remove('hidden');
+            if (rightAside) { rightAside.classList.add('hidden'); rightAside.style.display = 'none'; }
+            if (summary.card) { summary.card.classList.add('hidden'); summary.card.style.display = 'none'; }
+        } else {
+            if (rightAside) rightAside.style.display = '';
+            if (summary.card) summary.card.style.display = '';
+        }
+        updateProgressBar();
 	}
 
     function openChooseModal() {
@@ -109,6 +199,8 @@
         overlay.classList.remove('hidden');
         overlay.classList.add('flex');
         if (header) header.classList.add('hidden');
+        // ensure progress is hidden while choosing
+        if (progress.container) progress.container.classList.add('hidden');
         // reset selection on open as well
         state.donationType = null;
         if (buttons.chooseContinue) buttons.chooseContinue.disabled = true;
@@ -122,6 +214,8 @@
         overlay.classList.add('hidden');
         overlay.classList.remove('flex');
         if (header) header.classList.toggle('hidden', state.view === 'start');
+        // refresh progress visibility after closing modal
+        updateProgressBar();
         // reset selection when closing
         state.donationType = null;
         buttons.chooseContinue.disabled = true;
@@ -132,7 +226,32 @@
         let enabled = false;
         if (state.view === 'recurring') enabled = canProceedRecurring();
         if (state.view === 'oneTime') enabled = canProceedOneTime();
-        buttons.checkout.disabled = !enabled;
+        if (buttons.checkout) buttons.checkout.disabled = !enabled;
+    }
+
+    function setProgress(pct) {
+        if (!progress.fill) return;
+        const clamped = Math.max(0, Math.min(100, Math.round(pct)));
+        progress.fill.style.width = clamped + '%';
+        progress.fill.setAttribute('aria-valuenow', String(clamped));
+    }
+
+    function updateProgressBar() {
+        if (!progress.container) return;
+        const shouldShow = (state.view === 'oneTime' || state.view === 'oneTimeConfirm' || state.view === 'oneTimeFunding') && !isChooseOpen;
+        progress.container.classList.toggle('hidden', !shouldShow);
+        if (!shouldShow) return;
+        // Credits-confirmation screen is always complete
+        if (state.view === 'oneTimeConfirm') {
+            setProgress(100);
+            return;
+        }
+        if (state.view === 'oneTimeFunding') {
+            setProgress(75);
+            return;
+        }
+        // One-time screen always shows 50%, regardless of selections
+        setProgress(50);
     }
 
 	function toDollar(n) {
@@ -150,10 +269,12 @@
 	}
 
     function recomputeSummary() {
+        // keep progress in sync with pledge presence
+        updateProgressBar();
         // Determine visibility of summary
         const hasSelection = (state.view === 'oneTime' && ((state.otCreditsApplied || 0) > 0 || (state.amount || 0) > 0))
             || (state.view === 'recurring');
-        const showPanel = hasSelection || state.view === 'confirmation';
+        const showPanel = (state.view !== 'oneTimeFunding') && (hasSelection || state.view === 'confirmation');
         if (showPanel) {
             rightAside && rightAside.classList.remove('hidden');
             summary.card.classList.remove('hidden');
@@ -295,19 +416,65 @@
             if (shouldShowPledgeGroup) {
                 // ensure 12px gap below the last credit when pledge/match is present
                 if (lastCreditEl) lastCreditEl.classList.add('mb-3');
-                lastCard = addItemCard('Your pledge', 'This is your portion of this donation', pledge);
-                itemCount++;
-                addItemCard('CBC Capital match', 'Your company is matching your pledge', matchFromCompany);
-                itemCount++;
+                // Render as a single grouped container to emphasize relation
+                const group = document.createElement('div');
+                group.className = 'rounded-md border border-gray-200 bg-white overflow-hidden';
+                const addRow = (label, sub, amount, extraClass='') => {
+                    const row = document.createElement('div');
+                    row.className = 'flex items-center justify-between p-3 ' + extraClass;
+                    const left = document.createElement('div');
+                    const t = document.createElement('div'); t.className = 'font-medium text-zinc-900'; t.textContent = label;
+                    const s = document.createElement('div'); s.className = 'text-xs text-gray-500'; s.textContent = sub;
+                    left.appendChild(t); left.appendChild(s);
+                    const right = document.createElement('div'); right.className = 'font-medium'; right.textContent = toDollar(amount);
+                    if (label.includes('match')) right.classList.add('text-emerald-700');
+                    row.appendChild(left); row.appendChild(right);
+                    return row;
+                };
+                group.appendChild(addRow('My donation', 'This is your portion of this donation', pledge, 'border-b border-gray-200'));
+                group.appendChild(addRow('CBC Capital match', 'Your company is matching your pledge', matchFromCompany));
+                summary.itemization.appendChild(group);
+                itemCount += 2;
             }
 
-            if (summary.creditsNote) {
-                summary.creditsNote.textContent = `This will appear as ${itemCount} transaction${itemCount === 1 ? '' : 's'} in your giving history`;
-                // keep element height to preserve spacing, but hide text when only one item
-                summary.creditsNote.classList.toggle('invisible', itemCount <= 1);
-            }
+            // creditsNote removed from summary panel per updated UX
         }
         updateHeaderCta();
+    }
+
+    function renderOneTimeConfirm() {
+        if (!views.oneTimeConfirm) return;
+        // Compute credits selected
+        let totalCredits = 0;
+        let count = 0;
+        if (reviewEls.list) reviewEls.list.innerHTML = '';
+        inputs.creditRows().forEach((row) => {
+            const enabled = row.querySelector('.credit-enable').checked;
+            const input = row.querySelector('.credit-input');
+            const labelEl = row.querySelector('label span');
+            const name = labelEl ? labelEl.querySelector('.font-medium')?.textContent || labelEl.textContent : 'Donation credit';
+            const val = enabled ? (parseFloat(input.value) || 0) : 0;
+            if (enabled && val > 0) {
+                const item = document.createElement('div');
+                item.className = 'flex items-center justify-between px-4 py-2';
+                const left = document.createElement('div'); left.className = 'text-[14px]'; left.textContent = name.trim();
+                const right = document.createElement('div'); right.className = 'text-[14px] text-emerald-700 font-medium'; right.textContent = toDollar(val);
+                item.appendChild(left); item.appendChild(right);
+                reviewEls.list.appendChild(item);
+                totalCredits += val;
+                count++;
+            }
+        });
+        // Title and totals
+        if (reviewEls.title) reviewEls.title.textContent = `Let's review your ${toDollar(totalCredits)} donation to Team Rubicon`;
+        if (reviewEls.total) reviewEls.total.textContent = toDollar(totalCredits);
+        if (reviewEls.totalOrg) reviewEls.totalOrg.textContent = toDollar(totalCredits);
+        if (reviewEls.txnCount) reviewEls.txnCount.textContent = String(count);
+        const dueEl = document.getElementById('reviewDue');
+        if (dueEl) dueEl.textContent = toDollar(0);
+        // Initialize note/anon
+        if (reviewEls.note) reviewEls.note.value = state.note || '';
+        if (reviewEls.anonymous) reviewEls.anonymous.checked = !!state.anonymous;
     }
 
 	function canProceedRecurring() {
@@ -322,6 +489,61 @@
         const creditsOk = (state.otCreditsApplied || 0) > 0;
         const pledgeOk = state.amount >= 5;
         return creditsOk || pledgeOk;
+    }
+
+    // Funding fee math
+    function computeFundingFees(amount, method, coverFixed, includeCardPercent) {
+        const fixedDisplay = 0.50; // always show as positive in summary row
+        const card = includeCardPercent && method === 'card' ? amount * 0.029 : 0; // percent portion (always positive)
+        const dueFee = (coverFixed ? 0.50 : 0) + card; // what the user actually pays in fees
+        return { fixedDisplay, card, dueFee };
+    }
+
+    function renderFunding() {
+        // Determine selected method directly from DOM to avoid stale state
+        const selected = document.querySelector('input[name="fundingMethod"]:checked');
+        if (selected && selected.value) state.fundingMethod = selected.value;
+        const pledge = state.amount || 0;
+        if (fundingEls.amountLabel) fundingEls.amountLabel.textContent = toDollar(pledge);
+        if (fundingEls.gsaBalanceLabel) fundingEls.gsaBalanceLabel.textContent = toDollar(state.gsaBalance);
+        const coverFee = !!(fundingEls.coverFee && fundingEls.coverFee.checked);
+        // Card processing fee cannot be waived; only the fixed fee is waived
+        const includeCardPct = state.fundingMethod === 'card';
+        const fees = computeFundingFees(pledge, state.fundingMethod, coverFee, includeCardPct);
+        if (fundingEls.balance) fundingEls.balance.textContent = toDollar(pledge);
+        if (fundingEls.feeFixed) fundingEls.feeFixed.textContent = toDollar(fees.fixedDisplay);
+        if (fundingEls.feeCardRow) fundingEls.feeCardRow.classList.toggle('hidden', !includeCardPct);
+        if (fundingEls.feeCard) fundingEls.feeCard.textContent = toDollar(fees.card);
+        const totalDue = pledge + fees.dueFee;
+        if (fundingEls.total) fundingEls.total.textContent = toDollar(totalDue);
+        if (fundingEls.donationRow) fundingEls.donationRow.textContent = toDollar(pledge);
+        // Show contextual action buttons
+        const addBankWrap = document.getElementById('addBankWrap');
+        const addCardWrap = document.getElementById('addCardWrap');
+        if (addBankWrap) addBankWrap.classList.toggle('hidden', state.fundingMethod !== 'bankAdd');
+        if (addCardWrap) addCardWrap.classList.toggle('hidden', state.fundingMethod !== 'card');
+        // Update card button label and added indicator based on state
+        const cardBtn = document.getElementById('addCardBtn');
+        const cardAdded = document.getElementById('cardAdded');
+        if (cardBtn) {
+            const label = cardBtn.querySelector && cardBtn.querySelector('span');
+            if (label) label.textContent = state.cardInfoAdded ? 'Edit payment info' : 'Add payment info';
+        }
+        if (cardAdded) cardAdded.classList.toggle('hidden', !state.cardInfoAdded);
+        // Groundswell insufficient
+        const insufficient = state.fundingMethod === 'gsa' && state.gsaBalance < pledge;
+        if (fundingEls.gsaError) fundingEls.gsaError.classList.toggle('hidden', !insufficient);
+        // Toggle header cta
+        const canContinue = !insufficient;
+        if (buttons.checkout) buttons.checkout.disabled = !canContinue;
+        const sideBtn = document.getElementById('checkoutBtnSide');
+        sideBtn && (sideBtn.disabled = !canContinue);
+        // Ensure side panel is hidden on funding screen
+        summary.card && summary.card.classList.add('hidden');
+        rightAside && rightAside.classList.add('hidden');
+        // Ensure header is visible on funding screen
+        header && header.classList.remove('hidden');
+        updateProgressBar();
     }
 
 	// Inject options
@@ -360,17 +582,43 @@
             recomputeSummary();
             return;
         }
-        if (state.view === 'oneTime' && canProceedOneTime()) {
-            const credits = state.otCreditsApplied || 0;
-            confirmEls.amount.textContent = toDollar((state.amount || 0) + credits);
+        if (state.view === 'oneTimeFunding') {
+            // Proceed to final confirmation
+            const pledge = state.amount || 0;
+            const coverFixed = !!(fundingEls.coverFee && fundingEls.coverFee.checked);
+            const includeCardPct = state.fundingMethod === 'card';
+            const fees = computeFundingFees(pledge, state.fundingMethod, coverFixed, includeCardPct);
+            confirmEls.amount.textContent = toDollar(pledge);
             confirmEls.cadence.textContent = 'One-time';
-            confirmEls.fee.textContent = toDollar(feeFor(Math.max(0, state.amount - (state.otCreditsApplied||0))));
-            confirmEls.total.textContent = toDollar(Math.max(0, state.amount - (state.otCreditsApplied||0)) + feeFor(Math.max(0, state.amount - (state.otCreditsApplied||0))));
+            confirmEls.fee.textContent = toDollar(fees.dueFee);
+            confirmEls.total.textContent = toDollar(pledge + fees.dueFee);
             show('confirmation');
             recomputeSummary();
+            return;
+        }
+        if (state.view === 'oneTime' && canProceedOneTime()) {
+            const credits = state.otCreditsApplied || 0;
+            const pledgeOk = state.amount >= 5;
+            if (!pledgeOk && credits > 0) {
+                // Credits-only confirmation flow
+                show('oneTimeConfirm');
+                renderOneTimeConfirm();
+                // Hide receipt panel explicitly
+                summary.card && summary.card.classList.add('hidden');
+                rightAside && rightAside.classList.add('hidden');
+                updateProgressBar();
+                return;
+            }
+            // Pledge path → funding screen
+            show('oneTimeFunding');
+            // Ensure header visible and progress at 75%
+            header && header.classList.remove('hidden');
+            renderFunding();
+            updateProgressBar();
+            return;
         }
     }
-    buttons.checkout.addEventListener('click', triggerCheckout);
+    buttons.checkout && buttons.checkout.addEventListener('click', triggerCheckout);
     document.getElementById('checkoutBtnSide')?.addEventListener('click', triggerCheckout);
 
     document.getElementById('exitBtn')?.addEventListener('click', () => {
@@ -384,24 +632,23 @@
 		});
 	});
 
-    // Modal selection cards (event delegation ensures clicks on inner elements count)
+    // Modal selection cards
     const chooseContainer = document.getElementById('view-choose');
-    function handleSelectCard(target) {
-        const card = target.closest('.select-card');
-        if (!card || !chooseContainer || chooseContainer.classList.contains('hidden')) return;
-        state.donationType = card.getAttribute('data-type');
+    function handleSelectCard(cardEl) {
+        if (!cardEl || !chooseContainer || chooseContainer.classList.contains('hidden')) return;
+        state.donationType = cardEl.getAttribute('data-type');
         if (buttons.chooseContinue) buttons.chooseContinue.disabled = false;
         Array.from(document.querySelectorAll('#view-choose .select-card')).forEach((c) => c.classList.remove('selected'));
-        card.classList.add('selected');
+        cardEl.classList.add('selected');
     }
     Array.from(document.querySelectorAll('#view-choose .select-card')).forEach((card) => {
-        card.addEventListener('click', (e) => handleSelectCard(e.target));
+        card.addEventListener('click', (e) => { e.stopPropagation(); handleSelectCard(card); });
     });
 
     const chooseCloseBtn = document.getElementById('chooseCloseBtn');
     const chooseCancelBtn = document.getElementById('chooseCancelBtn');
-    chooseCloseBtn && chooseCloseBtn.addEventListener('click', () => closeChooseModal());
-    chooseCancelBtn && chooseCancelBtn.addEventListener('click', () => closeChooseModal());
+    chooseCloseBtn && chooseCloseBtn.addEventListener('click', (e) => { e.stopPropagation(); closeChooseModal(); });
+    chooseCancelBtn && chooseCancelBtn.addEventListener('click', (e) => { e.stopPropagation(); closeChooseModal(); });
 
 	// Click outside modal to close
     const chooseOverlay = document.getElementById('view-choose');
@@ -423,6 +670,100 @@
         if (selected === 'oneTime') show('oneTime');
         if (selected === 'recurring') show('recurring');
         recomputeSummary();
+    });
+
+    // Header back to donation
+    buttons.backToDonation && buttons.backToDonation.addEventListener('click', () => {
+        show('oneTime');
+        recomputeSummary();
+        updateProgressBar();
+    });
+
+    // Funding interactions
+    const fundingView = document.getElementById('view-oneTimeFunding');
+    function handleFundingMethodEvent() {
+        // Re-render after the browser updates the checked state
+        setTimeout(renderFunding, 0);
+    }
+    if (fundingView) {
+        ['change','input','click'].forEach((ev) => fundingView.addEventListener(ev, handleFundingMethodEvent));
+    }
+    fundingEls.coverFee && fundingEls.coverFee.addEventListener('change', () => renderFunding());
+    // Switch to bank quick link
+    document.getElementById('switchToBankLink')?.addEventListener('click', () => {
+        const addBank = document.querySelector('input[name="fundingMethod"][value="bankSaved"]');
+        if (addBank) {
+            addBank.checked = true;
+            state.fundingMethod = 'bankSaved';
+            renderFunding();
+        }
+    });
+
+    // Center continue button mirrors header action
+    document.getElementById('fundingContinueBtn')?.addEventListener('click', () => {
+        if (buttons.checkout) {
+            buttons.checkout.click();
+        } else {
+            // fallback: proceed
+            triggerCheckout();
+        }
+    });
+    // Open modals
+    document.getElementById('addBankBtn')?.addEventListener('click', () => {
+        const m = document.getElementById('modalPlaid');
+        if (m) { m.classList.remove('hidden'); m.classList.add('flex'); }
+    });
+    document.getElementById('modalPlaidClose')?.addEventListener('click', () => {
+        const m = document.getElementById('modalPlaid');
+        if (m) { m.classList.add('hidden'); m.classList.remove('flex'); }
+        // Show the second saved bank account option
+        const sb2 = document.getElementById('savedBank2Wrap');
+        if (sb2) {
+            sb2.classList.remove('hidden');
+            // select it
+            const rb = sb2.querySelector('input[type="radio"]');
+            if (rb) { rb.checked = true; state.fundingMethod = rb.value; }
+            renderFunding();
+        }
+    });
+    document.getElementById('addCardBtn')?.addEventListener('click', () => {
+        const m = document.getElementById('modalStripe');
+        if (m) { m.classList.remove('hidden'); m.classList.add('flex'); }
+    });
+    document.getElementById('modalStripeClose')?.addEventListener('click', () => {
+        const m = document.getElementById('modalStripe');
+        if (m) { m.classList.add('hidden'); m.classList.remove('flex'); }
+        // Indicate payment info added
+        state.cardInfoAdded = true;
+        renderFunding();
+    });
+
+    // Delegated safety net (in case buttons are re-rendered)
+    document.addEventListener('click', (e) => {
+        const openPlaid = e.target && (e.target.id === 'addBankBtn' || e.target.closest && e.target.closest('#addBankBtn'));
+        if (openPlaid) {
+            const m = document.getElementById('modalPlaid');
+            if (m) { m.classList.remove('hidden'); m.classList.add('flex'); }
+        }
+        const openStripe = e.target && (e.target.id === 'addCardBtn' || e.target.closest && e.target.closest('#addCardBtn'));
+        if (openStripe) {
+            const m = document.getElementById('modalStripe');
+            if (m) { m.classList.remove('hidden'); m.classList.add('flex'); }
+        }
+        const closePlaid = e.target && (e.target.id === 'modalPlaidClose' || e.target.closest && e.target.closest('#modalPlaidClose'));
+        if (closePlaid) {
+            const m = document.getElementById('modalPlaid');
+            if (m) { m.classList.add('hidden'); m.classList.remove('flex'); }
+            const sb2 = document.getElementById('savedBank2Wrap');
+            if (sb2) sb2.classList.remove('hidden');
+        }
+        const closeStripe = e.target && (e.target.id === 'modalStripeClose' || e.target.closest && e.target.closest('#modalStripeClose'));
+        if (closeStripe) {
+            const m = document.getElementById('modalStripe');
+            if (m) { m.classList.add('hidden'); m.classList.remove('flex'); }
+            state.cardInfoAdded = true;
+            renderFunding();
+        }
     });
 
 	inputs.amountChips.addEventListener('click', (e) => {
@@ -478,7 +819,8 @@
 	});
 
     // Reflect manual match override
-    document.getElementById('matchAmountInput')?.addEventListener('input', () => {
+    const matchAmountEl = document.getElementById('matchAmountInput');
+    matchAmountEl?.addEventListener('input', () => {
         // Clamp to 1x if user exceeds pledge; keep value synced
         const input = document.getElementById('matchAmountInput');
         const currentPledge = state.amount > 0 ? state.amount : 0;
@@ -491,6 +833,18 @@
         }
         state.matchEdited = true;
         recomputeSummary();
+    });
+    // Close edit on Enter
+    matchAmountEl?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const display = document.getElementById('matchDisplay');
+            const inputGroup = document.getElementById('matchInputGroup');
+            if (display && inputGroup) {
+                inputGroup.classList.add('hidden');
+                display.classList.remove('hidden');
+            }
+        }
     });
     // Edit button to switch to input
     document.getElementById('editMatchBtn')?.addEventListener('click', () => {
@@ -536,10 +890,77 @@
         syncVisibility();
     });
 
-	inputs.userCoversFee.addEventListener('change', () => {
-		state.userCoversFee = inputs.userCoversFee.checked;
-		recomputeSummary();
-	});
+inputs.userCoversFee && inputs.userCoversFee.addEventListener('change', () => {
+    state.userCoversFee = inputs.userCoversFee.checked;
+    recomputeSummary();
+});
+
+    // Note and anonymous
+    reviewEls.note && reviewEls.note.addEventListener('input', () => { state.note = reviewEls.note.value; });
+    reviewEls.anonymous && reviewEls.anonymous.addEventListener('change', () => { state.anonymous = reviewEls.anonymous.checked; });
+
+    // Donate submit → show success modal with total impact
+    function openSuccessModal() {
+        const totalImpact = reviewEls.totalOrg ? reviewEls.totalOrg.textContent : toDollar(0);
+        const amountDue = toDollar(0);
+        // Hide charged line for credits-only (amountDue $0.00), show otherwise
+        if (successEls.charged) {
+            if (amountDue === toDollar(0)) {
+                successEls.charged.classList.add('hidden');
+            } else {
+                successEls.charged.textContent = `You were charged ${amountDue}`;
+                successEls.charged.classList.remove('hidden');
+            }
+        }
+        if (successEls.impact && typeof totalImpact === 'string') successEls.impact.textContent = totalImpact;
+        if (successEls.txnText) {
+            const count = parseInt(reviewEls.txnCount?.textContent || '1', 10) || 1;
+            successEls.txnText.textContent = `This will appear as ${count} transaction${count === 1 ? '' : 's'} in your giving history`;
+        }
+        if (successEls.overlay) {
+            // Hide everything behind; keep overlay dark
+            document.querySelector('main')?.classList.add('hidden');
+            document.getElementById('siteHeader')?.classList.add('hidden');
+            successEls.overlay.classList.remove('hidden');
+            successEls.overlay.classList.add('flex');
+        }
+        // confetti burst (on our canvas behind the card)
+        const fc = ensureConfettiReady();
+        if (fc) {
+            fc({ particleCount: 140, spread: 70, origin: { x: 0.5, y: 0.15 } });
+            setTimeout(() => fc({ particleCount: 100, spread: 100, origin: { x: 0.5, y: 0.3 } }), 250);
+        }
+    }
+    reviewEls.donateSubmit && reviewEls.donateSubmit.addEventListener('click', (e) => { e.preventDefault(); openSuccessModal(); });
+    // Defensive: delegate in case the button is re-rendered
+    document.addEventListener('click', (e) => {
+        const btn = e.target && e.target.closest && e.target.closest('#donateSubmit');
+        if (btn) {
+            e.preventDefault();
+            openSuccessModal();
+        }
+    });
+    successEls.close && successEls.close.addEventListener('click', () => {
+        if (successEls.overlay) {
+            successEls.overlay.classList.add('hidden');
+            successEls.overlay.classList.remove('flex');
+        }
+        // Return to start screen with cleared state
+        const mainEl = document.querySelector('main');
+        if (mainEl) mainEl.classList.remove('hidden');
+        const headerEl = document.getElementById('siteHeader');
+        if (headerEl) headerEl.classList.add('hidden');
+        // Reset minimal state
+        state.view = 'start';
+        state.donationType = null;
+        state.amount = 0;
+        state.otCreditsApplied = 0;
+        state.matchEdited = false;
+        state.note = '';
+        state.anonymous = false;
+        show('start');
+        recomputeSummary();
+    });
 
 	Array.from(document.querySelectorAll('input[name="cadence"]')).forEach((input) => {
 		input.addEventListener('change', () => {
@@ -560,10 +981,10 @@
 		state.weeklyStart = inputs.weeklyStart.value || null;
 		recomputeSummary();
 	});
-	summary.employerCoversFee.addEventListener('change', () => {
-		state.employerCoversFee = summary.employerCoversFee.checked;
-		recomputeSummary();
-	});
+summary.employerCoversFee && summary.employerCoversFee.addEventListener('change', () => {
+    state.employerCoversFee = summary.employerCoversFee.checked;
+    recomputeSummary();
+});
 
     buttons.recurringContinue && buttons.recurringContinue.addEventListener('click', () => {
 		// Populate confirmation
@@ -594,13 +1015,14 @@
 		state.donationType = null;
 		state.amount = 0;
 		state.cadence = null;
-		summary.employerCoversFee.checked = false;
+        if (summary.employerCoversFee) summary.employerCoversFee.checked = false;
 		recomputeSummary();
 	});
 
     // Initial
 	show('start');
 	recomputeSummary();
+    updateProgressBar();
     window.addEventListener('resize', positionLeftMatchCard);
     window.addEventListener('scroll', positionLeftMatchCard, { passive: true });
 })();
