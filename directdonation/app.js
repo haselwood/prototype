@@ -579,7 +579,7 @@
                 const right = document.createElement('div');
                 right.className = 'font-medium';
                 right.textContent = toDollar(amount);
-                if (subtitle === 'Donation credit' || subtitle === 'Your company is matching your pledge') {
+                if (subtitle === 'Donation credit' || subtitle === 'This is your company match') {
                     right.classList.add('text-emerald-700');
                 }
                 // spacing below credits handled before pledge group; do not add per-item margin
@@ -630,8 +630,8 @@
                 };
                 const isRec = (state.view === 'recurring') || (state.view === 'confirmation' && state.donationType === 'recurring');
                 const myLabel = isRec ? 'My pledge' : 'My donation';
-                const matchSub = 'Your company is matching your ' + (isRec ? 'pledge' : 'donation');
-                group.appendChild(addRow(myLabel, 'This is your portion of this donation', pledge, 'border-b border-gray-200'));
+                const matchSub = 'This is your company match';
+                group.appendChild(addRow(myLabel, 'This is your donation amount', pledge, 'border-b border-gray-200'));
                 group.appendChild(addRow('CBC Capital match', matchSub, matchFromCompany));
                 summary.itemization.appendChild(group);
                 itemCount += 2;
@@ -719,7 +719,7 @@
         // Recurring copy tweaks
         const titleEl = document.getElementById('fundingTitle');
         if (titleEl && state.donationType === 'recurring') {
-            titleEl.textContent = `How do you want to fund your ${toDollar(pledge)} portion of the recurring donation?`;
+            titleEl.textContent = `How would you like to give your ${toDollar(pledge)}?`;
         }
         const donationLabel = document.getElementById('fundingDonationLabel');
         if (donationLabel && state.donationType === 'recurring') donationLabel.textContent = 'Your recurring pledge';
@@ -815,7 +815,7 @@
             fundingEls.feeFixed && (fundingEls.feeFixed.classList.add('line-through'));
             noFees && noFees.classList.remove('hidden');
         } else {
-            dueLabel && (dueLabel.textContent = 'Amount due from you');
+            dueLabel && (dueLabel.textContent = 'Amount to pay');
             fixedLabel && fixedLabel.classList.remove('line-through');
             fundingEls.feeFixed && (fundingEls.feeFixed.classList.remove('line-through'));
             noFees && noFees.classList.add('hidden');
@@ -955,9 +955,12 @@
         const banner = document.getElementById('creditsBanner');
         const card = document.getElementById('creditsCardContainer');
         const note = document.getElementById('creditsEligibilityNote');
+        const personalFundsHeading = document.getElementById('personalFundsHeading');
         if (banner) banner.classList.toggle('hidden', !state.hasCredits);
         if (card) card.classList.toggle('hidden', !state.hasCredits);
         if (note) note.classList.add('hidden');
+        // Hide the personal funds/company match heading when there are no credits
+        if (personalFundsHeading) personalFundsHeading.classList.toggle('hidden', !state.hasCredits);
         // Also clear credits when toggled off
         if (!state.hasCredits) state.otCreditsApplied = 0;
     }
@@ -1669,7 +1672,7 @@ summary.employerCoversFee && summary.employerCoversFee.addEventListener('change'
             const help = inputs.endHelp;
             if (help) {
                 if (val === 'none') help.textContent = "Will renew with your company's match program";
-                else if (val === 'untilMatch') help.textContent = 'Both your donation and any company match will stop';
+                else if (val === 'untilMatch') help.textContent = 'This donation will run until your matching program ends or funds are depleted';
                 else if (val === 'onDate') help.textContent = 'Choose a date';
                 else help.textContent = '';
             }

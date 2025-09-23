@@ -125,7 +125,7 @@
 
           <div id="creditsBanner" class="text-center">
             <h3 class="mb-1 text-[18px] font-semibold">You have credits available from CBC Capital</h3>
-            <p class="mb-1 text-[14px] text-gray-600">Use credits alone or with your own donation.</p>
+            <p class="mb-1 text-[14px] text-gray-600">Use donation credits alone or add your own donation.</p>
             <p class="mb-2 text-[14px] text-gray-600">Credits are not match eligible.</p>
           </div>
           <div id="creditsCardContainer" class="card p-0 credits-card">
@@ -191,7 +191,7 @@
           
 
           <div class="mt-0 text-center">
-            <h2 class="mb-1 text-[18px] font-semibold">Fund a donation and get a company match</h2>
+            <h2 id="personalFundsHeading" class="mb-1 text-[18px] font-semibold">Boost your donation with your own funds</h2>
           </div>
           <div class="card p-6 text-center">
               <div class="flex flex-wrap justify-center gap-2" id="otAmountChips">
@@ -253,7 +253,7 @@
             </div>
 
             <div class="card p-6">
-              <div class="mb-2 text-[14px] font-medium text-gray-800">How often do you want this donation to occur?</div>
+              <div class="mb-2 text-[14px] font-medium text-gray-800">Choose your donation frequency</div>
               <select id="recurrencePreset" class="input w-full mb-4">
                 <option value="" selected disabled>Select frequency</option>
                 <option value="monthly">Once a month</option>
@@ -264,7 +264,7 @@
               <div class="space-y-4">
                 <!-- Start date block (used for monthly and semi-monthly, and also for the consolidated monthly selection) -->
                 <div id="generalStartBlock" class="hidden">
-                  <div class="mb-1 text-sm text-gray-600">Pick a starting date</div>
+                  <div class="mb-1 text-sm text-gray-600">Choose a starting date</div>
                   <input id="recurringStart" type="date" class="input" />
                   <p id="startDateError" class="mt-2 hidden text-sm text-red-600">Start date must be in the future</p>
                   <div id="monthlySummary" class="hidden text-[16px] font-medium text-sky-700 mt-2"></div>
@@ -284,16 +284,16 @@
                       <option value="8">8 weeks</option>
                     </select>
                   </div>
-                  <div class="text-sm text-gray-600">Pick a starting date</div>
+                  <div class="text-sm text-gray-600">Choose a starting date</div>
                   <input id="weeklyStart" type="date" class="input" />
                   <div id="weeklySummary" class="hidden text-[16px] font-medium text-sky-700"></div>
                 </div>
                 <div>
-                  <div class="mb-1 text-[14px] font-medium text-[#18181B]">When would you like this to end?</div>
+                  <div class="mb-1 text-[14px] font-medium text-[#18181B]">Choose your donation end date</div>
                   <select id="endSelect" class="input w-full">
                     <option value="" selected disabled>Select an end option</option>
                     <option value="none">No end date</option>
-                    <option value="untilMatch">Until my match runs out or my company program ends</option>
+                    <option value="untilMatch">Until your program ends or funds run out</option>
                     <option value="onDate">On a date</option>
                   </select>
                   <div id="endHelp" class="mt-2 text-[14px] text-[#71717A]"></div>
@@ -365,7 +365,7 @@
         <section id="view-oneTimeFunding" data-view class="hidden">
           <div id="fundingContent" class="mx-auto max-w-[448px] space-y-6 mt-6">
             <div class="text-center">
-              <h3 id="fundingTitle" class="text-[18px] font-semibold">How do you want to fund your <span id="fundingAmountLabel">$0.00</span> portion of this donation?</h3>
+              <h3 id="fundingTitle" class="text-[18px] font-semibold">How would you like to give your <span id="fundingAmountLabel">$0.00</span>?</h3>
             </div>
 
             <div class="space-y-3">
@@ -447,7 +447,7 @@
               <input id="coverFeeFunding" type="checkbox" class="mt-1 h-4 w-4 accent-sky-700" checked />
               <span>
                 <div class="text-[14px] font-medium">I’ll cover the transaction fee</div>
-                <div class="text-xs text-gray-500">This helps charities receive the full intended amount</div>
+                <div class="text-xs text-gray-500">Cover the fee so the charity gets the full donation</div>
               </span>
             </label>
 
@@ -506,7 +506,7 @@
 
             <div class="space-y-4">
               <div class="flex items-center justify-between text-[16px] font-semibold text-sky-700">
-                <span>Amount due from you</span>
+                <span>Amount to pay</span>
                 <span id="reviewDue">$0.00</span>
               </div>
               <div class="flex items-center justify-between text-[16px] font-semibold">
@@ -566,7 +566,7 @@
                 <div class="flex items-center justify-between text-[14px] text-[#71717A]"><span>Transaction fee</span><span id="pledgeConfirmFeeFixed">$0.00</span></div>
               </div>
               <div class="flex items-center justify-between text-[16px] font-semibold text-sky-700">
-                <span class="inline-flex items-center gap-2"><i id="pledgeDueIcon" class="ph-bold ph-arrows-clockwise hidden"></i><span>Amount due from you</span></span>
+                <span class="inline-flex items-center gap-2"><i id="pledgeDueIcon" class="ph-bold ph-arrows-clockwise hidden"></i><span>Amount to pay</span></span>
                 <span id="pledgeDue">$0.00</span>
               </div>
               <div id="pledgeCadenceText" class="hidden text-sm font-medium text-sky-700"></div>
@@ -608,7 +608,7 @@
             <!-- credit rows injected here when applied -->
           </div>
           <div class="space-y-3 text-sm">
-            <div class="flex items-center justify-between text-sky-700 font-semibold"><span class="inline-flex items-center gap-2"><i id="sumIconDue" class="ph-bold ph-arrows-clockwise hidden"></i><span>Amount due from you</span></span><span id="sumDue">$0.00</span></div>
+            <div class="flex items-center justify-between text-sky-700 font-semibold"><span class="inline-flex items-center gap-2"><i id="sumIconDue" class="ph-bold ph-arrows-clockwise hidden"></i><span>Amount to pay</span></span><span id="sumDue">$0.00</span></div>
             <div class="flex items-center justify-between"><span class="inline-flex items-center gap-2"><i id="sumIconCovered" class="ph-bold ph-arrows-clockwise hidden"></i><span>Covered by your company</span></span><span id="sumCovered">$0.00</span></div>
             <div class="flex items-center justify-between border-t pt-2 font-semibold"><span class="inline-flex items-center gap-2"><i id="sumIconTotal" class="ph-bold ph-arrows-clockwise hidden"></i><span>Donation total</span></span><span id="sumTotal">$0.00</span></div>
           </div>
