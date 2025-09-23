@@ -63,6 +63,7 @@
 		checkout: document.getElementById('checkoutBtn'),
 		startDonate: document.getElementById('startDonateBtn'),
 		startDonateNoCredits: document.getElementById('startDonateNoCreditsBtn'),
+		startDonateNpoIneligible: document.getElementById('startDonateNpoIneligibleBtn'),
 		backToDonation: document.getElementById('backToDonationBtn'),
 		chooseBack: document.getElementById('chooseBackBtn'),
 		chooseContinue: document.getElementById('chooseContinueBtn'),
@@ -168,6 +169,7 @@
 		otCreditsApplied: 0,
 		userCoversFee: false,
         hasCredits: true,
+		isNpoEligible: true,
 		cadence: null, // 'monthly' | 'weekly' | 'semiMonthly'
 		monthlyDay: null,
 		weeklyInterval: 1,
@@ -201,6 +203,7 @@
         state.otCreditsApplied = 0;
         state.userCoversFee = false;
         state.hasCredits = true;
+        state.isNpoEligible = true;
         state.cadence = null;
         state.monthlyDay = null;
         state.weeklyInterval = 1;
@@ -245,7 +248,8 @@
                 if (state.view === 'oneTimeConfirm') label = 'Back to donation';
                 else if (state.view === 'oneTimePledgeConfirm') label = 'Back to funding source';
                 else if (state.view === 'oneTimeFunding') label = (state.donationType === 'recurring' ? 'Back to pledge' : 'Back to donation');
-                buttons.backToDonation.textContent = label;
+                const labelSpan = document.getElementById('backToDonationLabel');
+                if (labelSpan) labelSpan.textContent = label;
             }
         }
         // Header checkout visibility/label
@@ -461,7 +465,9 @@
         const credits = (state.view === 'oneTime' && state.hasCredits) ? (state.otCreditsApplied || 0) : 0;
         let matchFromCompany = 0;
         const isRecurring = state.view === 'recurring' || (state.view === 'confirmation' && state.donationType === 'recurring');
-        if (isRecurring) {
+        if (!state.isNpoEligible) {
+            matchFromCompany = 0;
+        } else if (isRecurring) {
             const m = typeof state.matchPerInstallment === 'number' ? state.matchPerInstallment : pledge;
             matchFromCompany = Math.max(0, Math.min(m, pledge));
         } else {
@@ -478,20 +484,91 @@
                 ? defaultMatch
                 : Math.max(0, Math.min(userMatchOverrideRaw, defaultMatch));
         }
-        const donationTotal = pledge + credits + matchFromCompany; // total donated to org includes company match
+        const donationTotal = pledge + credits + (state.isNpoEligible ? matchFromCompany : 0);
         const feeBase = Math.max(0, pledge); // fees apply only to user's pledge
         const fee = isRecurring ? 0 : feeFor(feeBase);
         const total = pledge + fee; // amount due from user
         if (summary.headlineTotal) summary.headlineTotal.textContent = toDollar(donationTotal);
-        if (summary.covered) summary.covered.textContent = toDollar(credits + matchFromCompany);
+        if (summary.covered) summary.covered.textContent = toDollar(credits + (state.isNpoEligible ? matchFromCompany : 0));
         if (summary.due) summary.due.textContent = toDollar(total);
         if (summary.total) summary.total.textContent = toDollar(donationTotal);
+        // Recurring-specific sidebar: relabel and show projection for 2025
+        const sumTotalLabel = document.getElementById('sumTotalLabel');
+        const projBlock = document.getElementById('sumProjectionBlock');
+        const projInstallmentsLine = document.getElementById('sumInstallmentsLine');
+        const projPayments = document.getElementById('sumProjectedPayments');
+        const projMatchItem = document.getElementById('sumProjectedMatchItem');
+        const projMatch = document.getElementById('sumProjectedMatch');
+        if (state.view === 'recurring' || (state.view === 'confirmation' && state.donationType === 'recurring')) {
+            if (sumTotalLabel) sumTotalLabel.textContent = 'Total donation per donation';
+            // Compute installments left and totals
+            let projected = 0;
+            let projectedMatch = 0;
+            let installmentsLeft = 0;
+            if (state.cadence && state.recurringStart) {
+                const start = parseLocalDate(state.recurringStart);
+                if (start) {
+                    const yearStart = new Date(2025, 0, 1);
+                    const yearEnd = new Date(2025, 11, 31);
+                    function next(date) {
+                        const d = new Date(date);
+                        if (state.cadence === 'weekly') {
+                            d.setDate(d.getDate() + 7 * (state.weeklyInterval || 1));
+                        } else if (state.cadence === 'semiMonthly') {
+                            const day = d.getDate();
+                            if (day < 15) d.setDate(15); else { d.setMonth(d.getMonth() + 1); d.setDate(1); }
+                        } else { // monthly
+                            const nextM = new Date(d);
+                            nextM.setMonth(nextM.getMonth() + 1);
+                            const target = state.monthlyDay || 1;
+                            nextM.setDate(1);
+                            const last = new Date(nextM.getFullYear(), nextM.getMonth() + 1, 0).getDate();
+                            nextM.setDate(Math.min(target, last));
+                            return nextM;
+                        }
+                        return d;
+                    }
+                    // Find first occurrence >= yearStart
+                    let cursor = new Date(start);
+                    // advance cursor into 2025 if needed
+                    while (cursor < yearStart) {
+                        const n = next(cursor);
+                        if (!n || n.getTime() === cursor.getTime()) break;
+                        cursor = n;
+                    }
+                    // count occurrences within 2025 and <= end date if set
+                    const endDate = state.endType === 'onDate' && state.recurringEnd ? parseLocalDate(state.recurringEnd) : null;
+                    while (cursor >= yearStart && cursor <= yearEnd && (!endDate || cursor <= endDate)) {
+                        projected += (state.amount || 0);
+                        installmentsLeft++;
+                        if (state.isNpoEligible) {
+                            const m = Math.min(state.matchPerInstallment || (state.amount || 0), (state.amount || 0));
+                            projectedMatch += m;
+                        }
+                        const n = next(cursor);
+                        if (!n || n.getTime() === cursor.getTime()) break;
+                        cursor = n;
+                    }
+                }
+            }
+            if (projBlock) projBlock.classList.toggle('hidden', !(projected > 0));
+            if (projPayments) projPayments.textContent = toDollar(projected);
+            if (projMatchItem) projMatchItem.classList.toggle('hidden', !(projectedMatch > 0));
+            if (projMatch) projMatch.textContent = toDollar(projectedMatch);
+            if (projInstallmentsLine) {
+                const span = projInstallmentsLine.querySelector('span');
+                if (span) span.textContent = `${installmentsLeft} donations left`;
+            }
+        } else {
+            if (sumTotalLabel) sumTotalLabel.textContent = 'Donation total';
+            if (projBlock) projBlock.classList.add('hidden');
+        }
 
         const matchDisplay = document.getElementById('matchDisplay');
         const matchText = document.getElementById('matchDisplayText');
         const matchInputGroup = document.getElementById('matchInputGroup');
         if (matchDisplay && matchText && matchInputGroup) {
-            if (pledge > 0) {
+            if (pledge > 0 && state.isNpoEligible) {
                 matchDisplay.classList.remove('hidden');
                 matchText.textContent = `${toDollar(matchFromCompany)} will be matched`;
             } else {
@@ -506,7 +583,7 @@
             const i1 = document.getElementById('sumIconDue');
             const i2 = document.getElementById('sumIconCovered');
             const i3 = document.getElementById('sumIconTotal');
-            if (isRecurring && state.cadence) {
+            if (isRecurring && state.cadence && state.isNpoEligible) {
                 let text = '';
                 if (state.cadence === 'monthly') {
                     const ord = (n)=>{const s=['th','st','nd','rd'], v=n%100; return n+(s[(v-20)%10]||s[v]||s[0]);};
@@ -559,14 +636,16 @@
             const totalAmt = document.getElementById('sumTotal');
             if (isRecurring) {
                 dueRow && dueRow.classList.add('hidden');
-                coveredRow && coveredRow.classList.add('hidden');
+                // Hide covered row whenever not eligible (no match), or on recurring summary style
+                if (coveredRow) coveredRow.classList.add('hidden');
                 // remove border/pt tally line on total row
                 if (totalRow) { totalRow.classList.remove('border-t', 'pt-2'); }
                 // indent amount by 16px
                 totalAmt && totalAmt.classList.add('pl-4');
             } else {
                 dueRow && dueRow.classList.remove('hidden');
-                coveredRow && coveredRow.classList.remove('hidden');
+                // Only show covered row when eligible (credits or match); in ineligible state, hide
+                if (coveredRow) coveredRow.classList.toggle('hidden', !state.isNpoEligible && ((state.otCreditsApplied||0)===0));
                 if (totalRow) { totalRow.classList.add('border-t', 'pt-2'); }
                 totalAmt && totalAmt.classList.remove('pl-4');
             }
@@ -642,11 +721,13 @@
                 };
                 const isRec = (state.view === 'recurring') || (state.view === 'confirmation' && state.donationType === 'recurring');
                 const myLabel = isRec ? 'My pledge' : 'My donation';
-                const matchSub = 'This is your company match';
-                group.appendChild(addRow(myLabel, 'This is your donation amount', pledge, 'border-b border-gray-200'));
-                group.appendChild(addRow('CBC Capital match', matchSub, matchFromCompany));
+                group.appendChild(addRow(myLabel, 'This is your donation amount', pledge, state.isNpoEligible ? 'border-b border-gray-200' : ''));
+                if (state.isNpoEligible) {
+                    const matchSub = 'This is your company match';
+                    group.appendChild(addRow('CBC Capital match', matchSub, matchFromCompany));
+                }
                 summary.itemization.appendChild(group);
-                itemCount += 2;
+                itemCount += state.isNpoEligible ? 2 : 1;
             }
 
             // creditsNote removed from summary panel per updated UX
@@ -712,13 +793,11 @@
 
     // Funding fee math
     function computeFundingFees(amount, method, coverFixed, includeCardPercent) {
-        // For recurring, the user does not pay fees
-        if (state.donationType === 'recurring') {
-            return { fixedDisplay: 0, card: 0, dueFee: 0 };
-        }
-        const fixedDisplay = 0.50; // always show as positive in summary row
-        const card = includeCardPercent && method === 'card' ? amount * 0.029 : 0; // percent portion (always positive)
-        const dueFee = (coverFixed ? 0.50 : 0) + card; // what the user actually pays in fees
+        // Fixed fee ($0.50) is waived for recurring; card fee (2.9%) applies if paying by card
+        const fixedDisplay = state.donationType === 'recurring' ? 0 : 0.50;
+        const card = (method === 'card') ? amount * 0.029 : 0; // percent portion (always positive)
+        const dueFixed = state.donationType === 'recurring' ? 0 : (coverFixed ? 0.50 : 0);
+        const dueFee = dueFixed + card; // what the user actually pays in fees
         return { fixedDisplay, card, dueFee };
     }
 
@@ -738,13 +817,13 @@
         if (fundingEls.gsaBalanceLabel) fundingEls.gsaBalanceLabel.textContent = toDollar(state.gsaBalance);
         const coverFee = !!(fundingEls.coverFee && fundingEls.coverFee.checked);
         // Card processing fee cannot be waived; only the fixed fee is waived
-        const includeCardPct = state.donationType === 'recurring' ? false : (state.fundingMethod === 'card');
+        const includeCardPct = (state.fundingMethod === 'card');
         const fees = computeFundingFees(pledge, state.fundingMethod, coverFee, includeCardPct);
         if (fundingEls.balance) fundingEls.balance.textContent = toDollar(pledge);
-        if (fundingEls.feeFixed) fundingEls.feeFixed.textContent = toDollar(state.donationType === 'recurring' ? 0 : fees.fixedDisplay);
-        if (fundingEls.feeCardRow) fundingEls.feeCardRow.classList.toggle('hidden', state.donationType === 'recurring' ? true : !includeCardPct);
-        if (fundingEls.feeCard) fundingEls.feeCard.textContent = toDollar(state.donationType === 'recurring' ? 0 : fees.card);
-        const totalDue = pledge + (state.donationType === 'recurring' ? 0 : fees.dueFee);
+        if (fundingEls.feeFixed) fundingEls.feeFixed.textContent = toDollar(fees.fixedDisplay);
+        if (fundingEls.feeCardRow) fundingEls.feeCardRow.classList.toggle('hidden', !includeCardPct);
+        if (fundingEls.feeCard) fundingEls.feeCard.textContent = toDollar(fees.card);
+        const totalDue = pledge + fees.dueFee;
         if (fundingEls.total) fundingEls.total.textContent = toDollar(totalDue);
         if (fundingEls.donationRow) fundingEls.donationRow.textContent = toDollar(pledge);
         // Amount going to Team Rubicon (one-time with pledge path only)
@@ -754,7 +833,8 @@
             const isCreditsOnly = state.view === 'oneTime' && (state.amount < 5) && (state.otCreditsApplied || 0) > 0;
             if (state.donationType !== 'recurring' && !isCreditsOnly) {
                 const coverFixed = !!(fundingEls.coverFee && fundingEls.coverFee.checked);
-                const going = pledge - (coverFixed ? 0 : 0.50);
+                const creditsApplied = state.hasCredits ? (state.otCreditsApplied || 0) : 0;
+                const going = creditsApplied + pledge - (coverFixed ? 0 : 0.50);
                 goingAmt.textContent = toDollar(Math.max(0, going));
                 goingRow.classList.remove('hidden');
             } else {
@@ -765,15 +845,22 @@
         const addBankWrap = document.getElementById('addBankWrap');
         const addCardWrap = document.getElementById('addCardWrap');
         if (addBankWrap) addBankWrap.classList.toggle('hidden', state.fundingMethod !== 'bankAdd');
-        if (addCardWrap) addCardWrap.classList.toggle('hidden', state.fundingMethod !== 'card');
+        // Remove card add flow in funding: always hide the button
+        if (addCardWrap) addCardWrap.classList.add('hidden');
+        // Cross out fixed fee row when user unchecks "I'll cover" (always keep struck on recurring)
+        (function updateFixedFeeStrike() {
+            const crossed = fundingEls.coverFee ? !fundingEls.coverFee.checked : false;
+            const fixedLabelEl = document.getElementById('fundingFeeFixedLabel');
+            const shouldStrike = state.donationType === 'recurring' || crossed;
+            fixedLabelEl && fixedLabelEl.classList.toggle('line-through', shouldStrike);
+            fundingEls.feeFixed && fundingEls.feeFixed.classList.toggle('line-through', shouldStrike);
+        })();
         // Update card button label and added indicator based on state
         const cardBtn = document.getElementById('addCardBtn');
         const cardAdded = document.getElementById('cardAdded');
-        if (cardBtn) {
-            const label = cardBtn.querySelector && cardBtn.querySelector('span');
-            if (label) label.textContent = state.cardInfoAdded ? 'Edit payment info' : 'Add payment info';
-        }
-        if (cardAdded) cardAdded.classList.toggle('hidden', !state.cardInfoAdded);
+        // Hide any remnants of the card-add UI
+        if (cardBtn) cardBtn.classList.add('hidden');
+        if (cardAdded) cardAdded.classList.add('hidden');
         // Groundswell insufficient
         const insufficient = state.fundingMethod === 'gsa' && state.gsaBalance < pledge;
         if (fundingEls.gsaError) fundingEls.gsaError.classList.toggle('hidden', !insufficient);
@@ -794,7 +881,7 @@
 
         // Cadence text on funding screen (blue)
         const fct = document.getElementById('fundingCadenceText');
-        if (fct && state.donationType === 'recurring') {
+        if (fct && state.donationType === 'recurring' && state.isNpoEligible) {
             let text = '';
             if (state.cadence === 'monthly') {
                 const ord = (n)=>{const s=['th','st','nd','rd'], v=n%100; return n+(s[(v-20)%10]||s[v]||s[0]);};
@@ -830,18 +917,20 @@
             fct.classList.remove('hidden');
         }
         const dueLabel = document.getElementById('fundingDueLabel');
-        // No transaction fee on recurring: strike through fixed fee amount and label, show badge
+        // Strike-through logic: always strike on recurring; on one-time strike when user is NOT covering
         const fixedLabel = document.getElementById('fundingFeeFixedLabel');
         const noFees = document.getElementById('fundingNoFeesBadge');
         if (state.donationType === 'recurring') {
-            dueLabel && (dueLabel.textContent = 'Amount due each installment');
-            fixedLabel && fixedLabel.classList.add('line-through');
-            fundingEls.feeFixed && (fundingEls.feeFixed.classList.add('line-through'));
+            dueLabel && (dueLabel.textContent = 'Amount due each donation');
+            const shouldStrike = true;
+            fixedLabel && fixedLabel.classList.toggle('line-through', shouldStrike);
+            fundingEls.feeFixed && fundingEls.feeFixed.classList.toggle('line-through', shouldStrike);
             noFees && noFees.classList.remove('hidden');
         } else {
             dueLabel && (dueLabel.textContent = 'Amount to pay');
-            fixedLabel && fixedLabel.classList.remove('line-through');
-            fundingEls.feeFixed && (fundingEls.feeFixed.classList.remove('line-through'));
+            const shouldStrike = !coverFee;
+            fixedLabel && fixedLabel.classList.toggle('line-through', shouldStrike);
+            fundingEls.feeFixed && fundingEls.feeFixed.classList.toggle('line-through', shouldStrike);
             noFees && noFees.classList.add('hidden');
         }
     }
@@ -870,13 +959,22 @@
     // Credits button → open modal, lock to one-time
     buttons.startDonate && buttons.startDonate.addEventListener('click', () => {
         state.hasCredits = true;
+        state.isNpoEligible = true;
         chooseLockOneTime = true;
         openChooseModal();
     });
     // No-credits button → open modal to choose one-time or recurring
     buttons.startDonateNoCredits && buttons.startDonateNoCredits.addEventListener('click', () => {
         state.hasCredits = false;
+        state.isNpoEligible = true;
         state.otCreditsApplied = 0; // ensure no stale credit carries into sidebar
+        openChooseModal();
+    });
+    // NPO ineligible path → no credits and no match program
+    buttons.startDonateNpoIneligible && buttons.startDonateNpoIneligible.addEventListener('click', () => {
+        state.hasCredits = false;
+        state.isNpoEligible = false;
+        state.otCreditsApplied = 0;
         openChooseModal();
     });
     buttons.oneTimeBack && buttons.oneTimeBack.addEventListener('click', () => openChooseModal());
@@ -923,7 +1021,27 @@
     document.getElementById('checkoutBtnSide')?.addEventListener('click', triggerCheckout);
 
     document.getElementById('exitBtn')?.addEventListener('click', () => {
-        show('start');
+        // If no selection made, just exit
+        const hasAnySelection = !!(state.amount || state.otCreditsApplied || state.cadence || state.recurringStart || state.recurringEnd);
+        if (!hasAnySelection) { show('start'); return; }
+        const modal = document.getElementById('exitConfirm');
+        if (!modal) { show('start'); return; }
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        const cancelBtn = document.getElementById('exitCancelBtn');
+        const confirmBtn = document.getElementById('exitConfirmBtn');
+        const close = () => { modal.classList.add('hidden'); modal.classList.remove('flex'); };
+        cancelBtn && cancelBtn.addEventListener('click', close, { once: true });
+        confirmBtn && confirmBtn.addEventListener('click', () => {
+            close();
+            // Hard reset all flow state before returning to start
+            resetAllState();
+            show('start');
+            recomputeSummary();
+            updateProgressBar();
+        }, { once: true });
+        // click outside to close
+        modal.addEventListener('click', (e) => { if (e.target === modal) close(); }, { once: true });
     });
 
 	Array.from(document.querySelectorAll('input[name="donationType"]')).forEach((input) => {
@@ -971,7 +1089,7 @@
         const selected = state.donationType; // capture before modal clears state
         closeChooseModal();
         if (selected === 'oneTime') { show('oneTime'); toggleCreditsUI(); }
-        if (selected === 'recurring') { state.donationType = 'recurring'; initRecurringDefaults(); show('recurring'); }
+        if (selected === 'recurring') { state.donationType = 'recurring'; initRecurringDefaults(); show('recurring'); toggleCreditsUI(); }
         recomputeSummary();
     });
 
@@ -980,11 +1098,24 @@
         const card = document.getElementById('creditsCardContainer');
         const note = document.getElementById('creditsEligibilityNote');
         const personalFundsHeading = document.getElementById('personalFundsHeading');
+        const oneTimeProgramCard = document.getElementById('oneTimeProgramCard');
+        const npoBadgeOneTime = document.getElementById('npoBadgeOneTime');
+        const npoBadgeRecurring = document.getElementById('npoBadgeRecurring');
+        const recurringProgramCard = document.getElementById('recurringProgramCard');
+        const recurringMatchDisplay = document.getElementById('recurringMatchDisplay');
         if (banner) banner.classList.toggle('hidden', !state.hasCredits);
         if (card) card.classList.toggle('hidden', !state.hasCredits);
         if (note) note.classList.add('hidden');
         // Hide the personal funds/company match heading when there are no credits
         if (personalFundsHeading) personalFundsHeading.classList.toggle('hidden', !state.hasCredits);
+        // Hide one-time program card when NPO not eligible
+        if (oneTimeProgramCard) oneTimeProgramCard.classList.toggle('hidden', !state.isNpoEligible);
+        // Hide recurring match UI when NPO not eligible
+        if (recurringProgramCard) recurringProgramCard.classList.toggle('hidden', !state.isNpoEligible);
+        if (recurringMatchDisplay) recurringMatchDisplay.classList.toggle('hidden', !state.isNpoEligible);
+        // Show/hide NPO ineligible badge per view
+        if (npoBadgeOneTime) npoBadgeOneTime.classList.toggle('hidden', state.isNpoEligible || state.view !== 'oneTime');
+        if (npoBadgeRecurring) npoBadgeRecurring.classList.toggle('hidden', state.isNpoEligible || state.view !== 'recurring');
         // Also clear credits when toggled off
         if (!state.hasCredits) state.otCreditsApplied = 0;
     }
@@ -1035,7 +1166,15 @@
     if (fundingView) {
         ['change','input','click'].forEach((ev) => fundingView.addEventListener(ev, handleFundingMethodEvent));
     }
-    fundingEls.coverFee && fundingEls.coverFee.addEventListener('change', () => renderFunding());
+    fundingEls.coverFee && fundingEls.coverFee.addEventListener('change', () => {
+        // Update strike immediately based on checkbox state
+        const fixedLabelEl = document.getElementById('fundingFeeFixedLabel');
+        const crossed = !fundingEls.coverFee.checked;
+        const shouldStrike = state.donationType === 'recurring' || crossed;
+        fixedLabelEl && fixedLabelEl.classList.toggle('line-through', shouldStrike);
+        fundingEls.feeFixed && fundingEls.feeFixed.classList.toggle('line-through', shouldStrike);
+        renderFunding();
+    });
     // Switch to bank quick link
     document.getElementById('switchToBankLink')?.addEventListener('click', () => {
         const addBank = document.querySelector('input[name="fundingMethod"][value="bankSaved"]');
@@ -1089,9 +1228,9 @@
                 const right = document.createElement('div'); right.className = 'text-[14px] font-medium'; right.textContent = toDollar(amount);
                 row.appendChild(left); row.appendChild(right); return row;
             };
-            const matchAmt = pledge; // 1x default behavior for prototype
-            // Match first (green), then my donation
-            {
+            const matchAmt = state.isNpoEligible ? pledge : 0; // 1x default behavior for prototype, unless ineligible
+            // Match first (green), then my donation (only when eligible)
+            if (state.isNpoEligible && matchAmt > 0) {
                 const row = document.createElement('div');
                 row.className = 'flex items-center justify-between px-4 py-2';
                 const left = document.createElement('div'); left.className = 'text-[14px]'; left.textContent = 'CBC Capital match';
@@ -1101,7 +1240,7 @@
             }
             const isRecConfirm = state.donationType === 'recurring';
             pledgeConfirmEls.list.appendChild(addRow(isRecConfirm ? 'My pledge' : 'My donation', pledge));
-            total += pledge + matchAmt; txn += 2;
+            total += pledge + (state.isNpoEligible ? matchAmt : 0); txn += (state.isNpoEligible && matchAmt > 0) ? 2 : 1;
         }
         if (pledgeConfirmEls.total) pledgeConfirmEls.total.textContent = toDollar(total);
         if (pledgeConfirmEls.txn) pledgeConfirmEls.txn.textContent = String(txn);
@@ -1112,7 +1251,7 @@
             if (state.fundingMethod === 'bankSaved2') label = 'Wells Fargo -1234';
             if (state.fundingMethod === 'bankAdd') label = 'Bank account';
             if (state.fundingMethod === 'gsa') label = 'Groundswell Giving Account';
-            if (state.fundingMethod === 'card') label = 'Card via Stripe';
+            if (state.fundingMethod === 'card') label = 'Credit/Debit card';
             pledgeConfirmEls.payMethod.textContent = label;
         }
         // Due and CTA
@@ -1127,23 +1266,38 @@
             const span = pledgeConfirmEls.donateBtn.querySelector('span');
             if (span) span.textContent = (state.donationType === 'recurring') ? 'Donate and schedule payments' : `Donate and pay ${toDollar(due)}`;
         }
-        // Show fee breakdown above Amount due when user chose to cover fixed fee (one-time only)
+        // Show fee breakdown and include card fee when paying by card
         const feeBreak = document.getElementById('pledgeFeeBreakdown');
         const feeDonation = document.getElementById('pledgeConfirmDonationAmount');
         const feeFixed = document.getElementById('pledgeConfirmFeeFixed');
+        const feeCardRow = document.getElementById('pledgeConfirmFeeCardRow');
+        const feeCardAmt = document.getElementById('pledgeConfirmFeeCard');
         if (feeBreak && feeDonation && feeFixed) {
-            if (!isRecurringConfirm) {
-                if (fundingEls.coverFee && fundingEls.coverFee.checked) {
-                    feeDonation.textContent = toDollar(pledge);
-                    // fixed fee is always $0.50 in this prototype
-                    feeFixed.textContent = toDollar(0.50);
-                    feeBreak.classList.remove('hidden');
-                } else {
-                    feeBreak.classList.add('hidden');
-                }
+            const payingByCard = state.fundingMethod === 'card';
+            const covers = !!(fundingEls.coverFee && fundingEls.coverFee.checked);
+            const feeFixedRow = feeFixed.parentElement;
+            // Donation base always shown
+            feeDonation.textContent = toDollar(pledge);
+            // Fixed fee row visibility
+            if (!isRecurringConfirm && covers) {
+                feeFixed.textContent = toDollar(0.50);
+                feeFixedRow && feeFixedRow.classList.remove('hidden');
             } else {
-                feeBreak.classList.add('hidden');
+                feeFixed.textContent = toDollar(0);
+                feeFixedRow && feeFixedRow.classList.add('hidden');
             }
+            // Card percentage line visibility
+            if (feeCardRow && feeCardAmt) {
+                if (payingByCard) {
+                    feeCardAmt.textContent = toDollar(pledge * 0.029);
+                    feeCardRow.classList.remove('hidden');
+                } else {
+                    feeCardRow.classList.add('hidden');
+                }
+            }
+            // Hide entire breakdown if no rows are visible
+            const hasAnyRow = (feeFixedRow && !feeFixedRow.classList.contains('hidden')) || (feeCardRow && !feeCardRow.classList.contains('hidden'));
+            feeBreak.classList.toggle('hidden', !hasAnyRow);
         }
         // Note/anon defaults from state
         if (pledgeConfirmEls.note) pledgeConfirmEls.note.value = state.note || '';
@@ -1152,7 +1306,7 @@
         const cadEl = document.getElementById('pledgeCadenceText');
         const pledgeDueIcon = document.getElementById('pledgeDueIcon');
         if (cadEl) {
-            if (isRecurringConfirm) {
+            if (isRecurringConfirm && state.isNpoEligible) {
                 let text = '';
                 if (state.cadence === 'monthly') {
                     const ord = (n)=>{const s=['th','st','nd','rd'], v=n%100; return n+(s[(v-20)%10]||s[v]||s[0]);};
@@ -1194,8 +1348,12 @@
         }
     }
 
-    pledgeConfirmEls.donateBtn && pledgeConfirmEls.donateBtn.addEventListener('click', () => {
-        // Reuse existing success modal flow with due amount
+    pledgeConfirmEls.donateBtn && pledgeConfirmEls.donateBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        // Open Stripe modal first if card; on close it routes to success
+        const m = document.getElementById('modalStripe');
+        if (m && state.fundingMethod === 'card') { m.classList.remove('hidden'); m.classList.add('flex'); return; }
+        // Fallback if modal missing or not paying by card
         const dueText = pledgeConfirmEls.due ? pledgeConfirmEls.due.textContent : '$0.00';
         if (successEls.charged) successEls.charged.textContent = `You were charged ${dueText}`;
         openSuccessModal();
@@ -1218,16 +1376,12 @@
             renderFunding();
         }
     });
-    document.getElementById('addCardBtn')?.addEventListener('click', () => {
-        const m = document.getElementById('modalStripe');
-        if (m) { m.classList.remove('hidden'); m.classList.add('flex'); }
-    });
+    // Move Stripe flow to confirmation donate actions
     document.getElementById('modalStripeClose')?.addEventListener('click', () => {
         const m = document.getElementById('modalStripe');
         if (m) { m.classList.add('hidden'); m.classList.remove('flex'); }
-        // Indicate payment info added
-        state.cardInfoAdded = true;
-        renderFunding();
+        // After closing Stripe, go to success screen
+        openSuccessModal();
     });
 
     // Delegated safety net (in case buttons are re-rendered)
@@ -1237,11 +1391,7 @@
             const m = document.getElementById('modalPlaid');
             if (m) { m.classList.remove('hidden'); m.classList.add('flex'); }
         }
-        const openStripe = e.target && (e.target.id === 'addCardBtn' || e.target.closest && e.target.closest('#addCardBtn'));
-        if (openStripe) {
-            const m = document.getElementById('modalStripe');
-            if (m) { m.classList.remove('hidden'); m.classList.add('flex'); }
-        }
+        // removed: opening stripe from funding
         const closePlaid = e.target && (e.target.id === 'modalPlaidClose' || e.target.closest && e.target.closest('#modalPlaidClose'));
         if (closePlaid) {
             const m = document.getElementById('modalPlaid');
@@ -1249,13 +1399,7 @@
             const sb2 = document.getElementById('savedBank2Wrap');
             if (sb2) sb2.classList.remove('hidden');
         }
-        const closeStripe = e.target && (e.target.id === 'modalStripeClose' || e.target.closest && e.target.closest('#modalStripeClose'));
-        if (closeStripe) {
-            const m = document.getElementById('modalStripe');
-            if (m) { m.classList.add('hidden'); m.classList.remove('flex'); }
-            state.cardInfoAdded = true;
-            renderFunding();
-        }
+        // handled globally above
     });
 
 	inputs.amountChips.addEventListener('click', (e) => {
@@ -1413,7 +1557,6 @@ inputs.userCoversFee && inputs.userCoversFee.addEventListener('change', () => {
 
     // Donate submit → show success modal with total impact
     function openSuccessModal() {
-        if (isSuccessOpen) return;
         const inPledgeConfirm = views.oneTimePledgeConfirm && !views.oneTimePledgeConfirm.classList.contains('hidden');
         const impactText = inPledgeConfirm
             ? (pledgeConfirmEls.total ? pledgeConfirmEls.total.textContent : toDollar(0))
@@ -1493,12 +1636,19 @@ inputs.userCoversFee && inputs.userCoversFee.addEventListener('change', () => {
             });
         });
     }
-    reviewEls.donateSubmit && reviewEls.donateSubmit.addEventListener('click', (e) => { e.preventDefault(); openSuccessModal(); });
+    reviewEls.donateSubmit && reviewEls.donateSubmit.addEventListener('click', (e) => {
+        e.preventDefault();
+        const m = document.getElementById('modalStripe');
+        if (m && state.fundingMethod === 'card') { m.classList.remove('hidden'); m.classList.add('flex'); return; }
+        openSuccessModal();
+    });
     // Defensive: delegate in case the button is re-rendered
     document.addEventListener('click', (e) => {
         const btn = e.target && e.target.closest && e.target.closest('#donateSubmit');
         if (btn) {
             e.preventDefault();
+            const m = document.getElementById('modalStripe');
+            if (m && state.fundingMethod === 'card') { m.classList.remove('hidden'); m.classList.add('flex'); return; }
             openSuccessModal();
         }
     });
@@ -1610,6 +1760,43 @@ summary.employerCoversFee && summary.employerCoversFee.addEventListener('change'
                 state.weeklyInterval = parseInt(inputs.customWeeklyInterval?.value || '1', 10);
             }
             toggleRecurrenceUi(val);
+            // For semi-monthly, auto-select the nearest upcoming 1st or 15th in the start date picker
+            if (val === 'semiMonthly') {
+                const today = new Date();
+                // Use local date; pick strictly in the future
+                const day = today.getDate();
+                let target = new Date(today);
+                if (day < 1) {
+                    target.setDate(1);
+                } else if (day < 15) {
+                    target.setDate(15);
+                } else {
+                    // move to next month's 1st
+                    target.setMonth(target.getMonth() + 1);
+                    target.setDate(1);
+                }
+                // If target is today (edge case), push to 15th of current month or 1st of next
+                if (target.toDateString() === today.toDateString()) {
+                    if (day === 1) {
+                        target.setDate(15);
+                    } else {
+                        target.setMonth(target.getMonth() + 1);
+                        target.setDate(1);
+                    }
+                }
+                const iso = new Date(target.getTime() - target.getTimezoneOffset()*60000).toISOString().slice(0,10);
+                state.recurringStart = iso;
+                if (inputs.recurringStart) inputs.recurringStart.value = iso;
+                // Update the blue monthly summary snippet immediately
+                const monthlySummary = document.getElementById('monthlySummary');
+                if (monthlySummary) {
+                    const mm = String(target.getMonth()+1).padStart(2,'0');
+                    const dd = String(target.getDate()).padStart(2,'0');
+                    const yy = String(target.getFullYear()).toString().slice(-2);
+                    monthlySummary.textContent = `Repeats monthly on the 1st and 15th, starting ${mm}/${dd}/${yy}`;
+                    monthlySummary.classList.remove('hidden');
+                }
+            }
             // Hide any prior blue summaries until a new date is selected
             const monthlySummary = document.getElementById('monthlySummary');
             const weeklySummary = document.getElementById('weeklySummary');
