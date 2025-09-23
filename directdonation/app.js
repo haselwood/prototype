@@ -528,6 +528,18 @@
                     const yy = String(start.getFullYear()).toString().slice(-2);
                     text += `, starting ${mm}/${dd}/${yy}`;
                 }
+                // Append explicit end date when user selected one
+                const end = (state.endType === 'onDate' && state.recurringEnd) ? parseLocalDate(state.recurringEnd) : null;
+                if (end) {
+                    const emm = String(end.getMonth()+1).padStart(2,'0');
+                    const edd = String(end.getDate()).padStart(2,'0');
+                    const eyy = String(end.getFullYear()).toString().slice(-2);
+                    text += `, ending ${emm}/${edd}/${eyy}`;
+                }
+                // Append untilMatch hint when selected
+                if (!end && state.endType === 'untilMatch') {
+                    text += ', until your program ends or funds run out';
+                }
                 sideCadence.innerHTML = `<span class="inline-flex items-center gap-2"><i class="ph-bold ph-arrows-clockwise"></i><span>${text}</span></span>`;
                 sideCadence.classList.remove('hidden');
                 // Keep sidebar icons hidden for recurring
@@ -801,6 +813,18 @@
                 const dd = String(start.getDate()).padStart(2,'0');
                 const yy = String(start.getFullYear()).toString().slice(-2);
                 text += `, starting ${mm}/${dd}/${yy}`;
+            }
+            // Append explicit end date when user selected one
+            const end = (state.endType === 'onDate' && state.recurringEnd) ? parseLocalDate(state.recurringEnd) : null;
+            if (end) {
+                const emm = String(end.getMonth()+1).padStart(2,'0');
+                const edd = String(end.getDate()).padStart(2,'0');
+                const eyy = String(end.getFullYear()).toString().slice(-2);
+                text += `, ending ${emm}/${edd}/${eyy}`;
+            }
+            // Append untilMatch hint when selected
+            if (!end && state.endType === 'untilMatch') {
+                text += ', until your program ends or funds run out';
             }
             fct.textContent = text;
             fct.classList.remove('hidden');
@@ -1147,6 +1171,18 @@
                     const dd = String(start.getDate()).padStart(2,'0');
                     const yy = String(start.getFullYear()).toString().slice(-2);
                     text += `, starting ${mm}/${dd}/${yy}`;
+                }
+                // Append explicit end date when user selected one
+                const end = (state.endType === 'onDate' && state.recurringEnd) ? parseLocalDate(state.recurringEnd) : null;
+                if (end) {
+                    const emm = String(end.getMonth()+1).padStart(2,'0');
+                    const edd = String(end.getDate()).padStart(2,'0');
+                    const eyy = String(end.getFullYear()).toString().slice(-2);
+                    text += `, ending ${emm}/${edd}/${eyy}`;
+                }
+                // Append untilMatch hint when selected
+                if (!end && state.endType === 'untilMatch') {
+                    text += ', until your program ends or funds run out';
                 }
                 cadEl.textContent = text;
                 cadEl.classList.remove('hidden');
@@ -1678,10 +1714,18 @@ summary.employerCoversFee && summary.employerCoversFee.addEventListener('change'
             }
             if (endWrap) endWrap.classList.toggle('hidden', val !== 'onDate');
             validateRecurring();
+            // Refresh cadence snippets when end option changes
+            recomputeSummary();
+            if (state.view === 'oneTimeFunding') renderFunding();
+            if (state.view === 'oneTimePledgeConfirm') renderPledgeConfirm();
         });
         inputs.recurringEnd && inputs.recurringEnd.addEventListener('change', () => {
             state.recurringEnd = inputs.recurringEnd.value || null;
             validateRecurring(); projectAndRenderProgram();
+            // Refresh cadence snippets when end date changes
+            recomputeSummary();
+            if (state.view === 'oneTimeFunding') renderFunding();
+            if (state.view === 'oneTimePledgeConfirm') renderPledgeConfirm();
         });
         // Recurring match edit
         const display = document.getElementById('recurringMatchDisplay');
