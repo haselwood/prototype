@@ -404,15 +404,26 @@
         return `$${v.toLocaleString()}`;
     }
 
-	function feeFor(amount) {
-		if (state.view === 'recurring') {
-			if (state.employerCoversFee) return 0;
-			return amount * 0.029 + 0.3;
-		}
-		// one-time
-		if (!state.userCoversFee) return 0;
-		return amount * 0.029 + 0.3;
-	}
+// Unified helper to compute fees consistently using funding rules
+function computeUnifiedFees(amount) {
+    const pledge = Math.max(0, amount || 0);
+    // Determine if we know funding context
+    const isFundingContext = (state.view === 'oneTimeFunding' || state.view === 'oneTimePledgeConfirm');
+    const isRecurring = state.donationType === 'recurring' || state.view === 'recurring';
+    // Determine cover fixed from funding checkbox when available
+    let coverFixed = false;
+    const coverEl = document.getElementById('coverFeeFunding');
+    if (coverEl && !isRecurring) coverFixed = !!coverEl.checked;
+    // Determine method when available, default to non-card pre-funding
+    const method = state.fundingMethod || 'bankSaved';
+    const includeCardPct = method === 'card';
+    // Recurring always waives fixed fee; card % applies only for card
+    const fixedDisplay = isRecurring ? 0 : 0.50;
+    const card = includeCardPct ? pledge * 0.029 : 0;
+    const dueFixed = isRecurring ? 0 : (coverFixed ? 0.50 : 0);
+    const dueFee = dueFixed + card;
+    return { fixedDisplay, card, dueFee };
+}
 
     function recomputeSummary() {
         // keep progress in sync with pledge presence
@@ -485,12 +496,16 @@
                 : Math.max(0, Math.min(userMatchOverrideRaw, defaultMatch));
         }
         const donationTotal = pledge + credits + (state.isNpoEligible ? matchFromCompany : 0);
-        const feeBase = Math.max(0, pledge); // fees apply only to user's pledge
-        const fee = isRecurring ? 0 : feeFor(feeBase);
-        const total = pledge + fee; // amount due from user
+        // Sidebar: pre-funding we avoid card% assumptions; on funding/confirm we mirror funding rules
+        let total = pledge;
+        if (state.view === 'oneTimeFunding' || state.view === 'oneTimePledgeConfirm') {
+            const fees = computeUnifiedFees(pledge);
+            total = pledge + fees.dueFee;
+        }
         if (summary.headlineTotal) summary.headlineTotal.textContent = toDollar(donationTotal);
         if (summary.covered) summary.covered.textContent = toDollar(credits + (state.isNpoEligible ? matchFromCompany : 0));
         if (summary.due) summary.due.textContent = toDollar(total);
+        // On funding screen, reflect fixed fee not covered by donor in the org impact line if available
         if (summary.total) summary.total.textContent = toDollar(donationTotal);
         // Recurring-specific sidebar: relabel and show projection for 2025
         const sumTotalLabel = document.getElementById('sumTotalLabel');
@@ -1105,7 +1120,7 @@
         const recurringMatchDisplay = document.getElementById('recurringMatchDisplay');
         if (banner) banner.classList.toggle('hidden', !state.hasCredits);
         if (card) card.classList.toggle('hidden', !state.hasCredits);
-        if (note) note.classList.add('hidden');
+        if (note) note.classList.toggle('hidden', !(state.view === 'oneTime' && state.hasCredits));
         // Hide the personal funds/company match heading when there are no credits
         if (personalFundsHeading) personalFundsHeading.classList.toggle('hidden', !state.hasCredits);
         // Hide one-time program card when NPO not eligible
@@ -1257,7 +1272,7 @@
         // Due and CTA
         const coverFixed = !!(fundingEls.coverFee && fundingEls.coverFee.checked);
         const includeCardPct = state.fundingMethod === 'card';
-        const fees = computeFundingFees(pledge, state.fundingMethod, coverFixed, includeCardPct);
+        const fees = computeUnifiedFees(pledge);
         const due = pledge + fees.dueFee;
         if (pledgeConfirmEls.due) pledgeConfirmEls.due.textContent = toDollar(due);
         const isRecurringConfirm = state.donationType === 'recurring';
@@ -1544,6 +1559,16 @@
         input.addEventListener('input', () => { recalcCredits(); recomputeSummary(); });
         // initialize hidden state
         syncVisibility();
+        // Make entire row clickable to toggle checkbox and focus amount when enabling
+        row.addEventListener('click', (e) => {
+            const interactive = e.target.closest('input') || e.target.closest('button') || e.target.closest('label');
+            if (interactive) return;
+            enable.checked = !enable.checked;
+            syncVisibility();
+            if (enable.checked) { try { input.focus(); } catch(_) {} }
+            recalcCredits();
+            recomputeSummary();
+        });
     });
 
 inputs.userCoversFee && inputs.userCoversFee.addEventListener('change', () => {
@@ -1702,10 +1727,12 @@ summary.employerCoversFee && summary.employerCoversFee.addEventListener('change'
     });
 
     buttons.oneTimeContinue && buttons.oneTimeContinue.addEventListener('click', () => {
-		confirmEls.amount.textContent = toDollar(state.amount);
-		confirmEls.cadence.textContent = 'One-time';
-		confirmEls.fee.textContent = toDollar(feeFor(Math.max(0, state.amount - (state.otCreditsApplied||0))));
-		confirmEls.total.textContent = toDollar(Math.max(0, state.amount - (state.otCreditsApplied||0)) + feeFor(Math.max(0, state.amount - (state.otCreditsApplied||0))));
+        confirmEls.amount.textContent = toDollar(state.amount);
+        confirmEls.cadence.textContent = 'One-time';
+        const pledgeNet = Math.max(0, state.amount - (state.otCreditsApplied||0));
+        const fees = computeUnifiedFees(pledgeNet);
+        confirmEls.fee.textContent = toDollar(fees.dueFee);
+        confirmEls.total.textContent = toDollar(pledgeNet + fees.dueFee);
 		show('confirmation');
 		recomputeSummary();
 	});
